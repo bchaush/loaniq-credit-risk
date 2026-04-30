@@ -104,6 +104,78 @@ h1, h2, h3, h4, p, label, div {
     box-shadow: 0 0 0 3px rgba(59,130,246,.3), 0 0 28px -4px rgba(37,99,235,.4) !important;
 }
 
+/* BaseWeb selectbox popover (dropdown) background fix */
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="menu"] ul {
+    background: #10141d !important;
+    border: 1px solid rgba(48,58,78,.95) !important;
+    border-radius: 8px !important;
+}
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="menu"] li {
+    color: #e8eaf2 !important;
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    font-size: 13px !important;
+}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="menu"] li:hover {
+    background: rgba(59,130,246,.12) !important;
+}
+
+/* Compliance / disclosure banners */
+.lq-compliance-banner {
+    position: relative;
+    overflow: hidden;
+    margin: -0.125rem 0 1.0625rem;
+    padding: .55rem .875rem .55rem .95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(42,52,68,.93);
+    background:
+        radial-gradient(120% 140% at 0% -20%, rgba(59,130,246,.10) 0%, transparent 55%),
+        linear-gradient(180deg, rgba(18,21,31,.92) 0%, rgba(12,14,20,.90) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 12px 36px -28px rgba(0,0,0,.60);
+}
+.lq-compliance-banner::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, rgba(96,165,250,.95) 0%, rgba(37,99,235,.95) 100%);
+    opacity: .65;
+}
+.lq-compliance-banner p {
+    margin: 0;
+    padding-left: .35rem;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #aeb6cb;
+}
+.lq-ecoa-banner {
+    margin: 0 0 10px;
+    padding: .875rem 1.125rem;
+    border-radius: 13px;
+    border: 1px solid rgba(245,158,11,.35);
+    background:
+        radial-gradient(90% 80% at 100% 0%, rgba(245,158,11,.12) 0%, transparent 55%),
+        linear-gradient(178deg, rgba(18,21,31,.90) 0%, rgba(12,14,20,.88) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 32px -26px rgba(0,0,0,.65);
+}
+.lq-ecoa-eyebrow {
+    font-size: 10px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    color: rgba(245,158,11,.90);
+    margin-bottom: .375rem;
+}
+.lq-ecoa-body {
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(235,216,170,.90);
+}
+
 [data-testid="stNumberInput"] button,
 [data-testid="stNumberInput"] [role="button"] {
     background: rgba(255,255,255,.05) !important;
@@ -239,9 +311,9 @@ h1, h2, h3, h4, p, label, div {
     border-bottom: 2px solid transparent !important;
     margin-bottom: -1px !important;
 }
-[aria-selected="true"][data-baseweb="tab"] {
+[data-baseweb="tab-list"] [data-baseweb="tab"][aria-selected="true"] {
     color: #e8eaf2 !important;
-    border-bottom-color: #3b82f6 !important;
+    border-bottom: 2px solid #3b82f6 !important;
     font-weight: 500 !important;
 }
 
@@ -1310,6 +1382,12 @@ with tab1:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div class="lq-compliance-banner">
+        <p>This pipeline simulates a US-style underwriting workflow. The underlying ML model is trained on the Home Credit international risk dataset due to US data privacy restrictions; the architecture and UI reflect standard Boston-area fintech deployment patterns.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     left, right = st.columns([1.1, 1], gap="medium")
 
     # ── LEFT: Intake ───────────────────────────────────────────────
@@ -1334,20 +1412,24 @@ with tab1:
             c1, c2 = st.columns(2)
             with c1:
                 amt_income  = st.number_input(
-                    "Annual gross income", 10000, 1000000, 60000, 5000,
+                    "Verified Gross Annual Income", 10000, 1000000, 60000, 5000,
+                    format="%d",
                     help="Total gross income per year referenced on this file (USD).",
                 )
                 amt_annuity = st.number_input(
-                    "Estimated annual repayment", 1000, 200000, 12000, 500,
+                    "Target Annual Debt Service", 1000, 200000, 12000, 500,
+                    format="%d",
                     help="Sum of installments due in the next 12 months (USD per year).",
                 )
             with c2:
                 amt_credit  = st.number_input(
-                    "Requested loan principal", 5000, 2000000, 180000, 5000,
+                    "Requested Credit Facility", 5000, 2000000, 180000, 5000,
+                    format="%d",
                     help="Disbursed / requested credit amount excluding fees (USD).",
                 )
                 amt_goods   = st.number_input(
-                    "Collateral / goods price", 5000, 2000000, 170000, 5000,
+                    "Collateral Valuation", 5000, 2000000, 170000, 5000,
+                    format="%d",
                     help="Appraised or stated value of financed goods/collateral (USD).",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
@@ -1359,26 +1441,26 @@ with tab1:
                 <span class="lq-form-section-num">02</span>
                 <div class="lq-section-meta">
                     <div class="lq-section-title-main">Credit</div>
-                    <div class="lq-section-title-sub">Bureau composites &amp; inquiries</div>
-                    <div class="lq-section-desc-main">Normalized bureau factors (0–1) and inquiry history.</div>
+                    <div class="lq-section-title-sub">Alternative credit composites &amp; inquiry history</div>
+                    <div class="lq-section-desc-main">Non-FICO alternative scoring signals normalized to 0–1, plus inquiry history.</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
             with c1:
                 ext_source_1 = st.number_input(
-                    "Bureau composite 1", 0.0, 1.0, 0.50, 0.01,
-                    format="%.2f", help="First normalized bureau score segment (models expect 0.00–1.00).",
+                    "Alternative Credit Composite A", 0.0, 1.0, 0.50, 0.01,
+                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_1 from the training dataset.",
                 )
             with c2:
                 ext_source_2 = st.number_input(
-                    "Bureau composite 2", 0.0, 1.0, 0.45, 0.01,
-                    format="%.2f", help="Second bureau segment; values under 0.30 are high risk in training.",
+                    "Alternative Credit Composite B", 0.0, 1.0, 0.45, 0.01,
+                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_2 from the training dataset.",
                 )
             with c3:
                 ext_source_3 = st.number_input(
-                    "Bureau composite 3", 0.0, 1.0, 0.50, 0.01,
-                    format="%.2f", help="Third bureau segment; flags under 0.30 like composite 2.",
+                    "Alternative Credit Composite C", 0.0, 1.0, 0.50, 0.01,
+                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_3 from the training dataset.",
                 )
             flags = []
             if ext_source_2 < 0.3: flags.append("Bureau score 2")
@@ -1393,7 +1475,7 @@ with tab1:
                 )
             with c2:
                 region_rating = st.selectbox(
-                    "Region risk rating",
+                    "Geographic Risk Tier",
                     [1, 2, 3],
                     help="Internal regional risk band (1 = lowest risk tier in this demo).",
                 )
@@ -1409,6 +1491,13 @@ with tab1:
                     <div class="lq-section-title-sub">Household &amp; housing</div>
                     <div class="lq-section-desc-main">Demographics used for stability and policy checks.</div>
                 </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div class="lq-ecoa-banner">
+                <div class="lq-ecoa-eyebrow">ECOA / Fair Lending Note</div>
+                <div class="lq-ecoa-body">Demographic features such as Age and Marital Status are retained in this UI strictly for model parity with the underlying research dataset. In a live US production environment, these variables would be excluded or sanitized to comply with the Equal Credit Opportunity Act (ECOA).</div>
             </div>
             """, unsafe_allow_html=True)
             c1, c2 = st.columns(2)
