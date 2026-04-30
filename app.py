@@ -108,21 +108,33 @@ h1, h2, h3, h4, p, label, div {
 }
 
 /* BaseWeb selectbox popover (dropdown) background fix */
+div[data-baseweb="popover"],
+div[data-baseweb="popover"] div,
 [data-baseweb="popover"] [role="listbox"],
-[data-baseweb="menu"] ul {
+[data-baseweb="menu"] ul,
+ul[role="listbox"] {
     background: #10141d !important;
+    background-color: #10141d !important;
     border: 1px solid rgba(48,58,78,.95) !important;
     border-radius: 8px !important;
 }
+[data-baseweb="popover"] li,
 [data-baseweb="popover"] [role="option"],
-[data-baseweb="menu"] li {
+[data-baseweb="menu"] li,
+li[role="option"] {
+    background: #10141d !important;
+    background-color: #10141d !important;
     color: #e8eaf2 !important;
     font-family: 'IBM Plex Sans', sans-serif !important;
     font-size: 13px !important;
 }
 [data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="menu"] li:hover {
-    background: rgba(59,130,246,.12) !important;
+[data-baseweb="popover"] li:hover,
+[data-baseweb="menu"] li:hover,
+li[role="option"]:hover {
+    background: rgba(59,130,246,.15) !important;
+    background-color: rgba(59,130,246,.15) !important;
+    color: #ffffff !important;
 }
 
 /* Compliance / disclosure banners */
