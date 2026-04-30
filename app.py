@@ -7,6 +7,9 @@ import re
 sys.path.insert(0, os.path.dirname(__file__))
 from model.explainer import full_assessment, score_applicant
 
+if __name__ != "__main__":
+    raise SystemExit
+
 st.set_page_config(
     page_title="LoanIQ — Underwriting",
     page_icon="🏦",
@@ -174,6 +177,30 @@ h1, h2, h3, h4, p, label, div {
     font-size: 12px;
     line-height: 1.6;
     color: rgba(235,216,170,.90);
+}
+
+.lq-taxonomy-banner {
+    margin: 0 0 10px;
+    padding: .875rem 1.125rem;
+    border-radius: 13px;
+    border: 1px solid rgba(59,130,246,.35);
+    background:
+        radial-gradient(90% 80% at 100% 0%, rgba(59,130,246,.08) 0%, transparent 55%),
+        linear-gradient(178deg, rgba(18,21,31,.90) 0%, rgba(12,14,20,.88) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 32px -26px rgba(0,0,0,.65);
+}
+.lq-taxonomy-eyebrow {
+    font-size: 10px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    color: rgba(96,165,250,.90);
+    margin-bottom: .375rem;
+}
+.lq-taxonomy-body {
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(186,210,252,.88);
 }
 
 [data-testid="stNumberInput"] button,
@@ -1574,15 +1601,23 @@ with tab1:
                 <span class="lq-form-section-num">04</span>
                 <div class="lq-section-meta">
                     <div class="lq-section-title-main">Employment</div>
-                    <div class="lq-section-title-sub">Income channel &amp; tenure</div>
-                    <div class="lq-section-desc-main">Labor profile and geography used for underwriting context.</div>
+                    <div class="lq-section-title-sub">Employment Stability &amp; Income Profile</div>
+                    <div class="lq-section-desc-main">Employment channel, organizational segment, and tenure signals used for income stability assessment.</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div class="lq-taxonomy-banner">
+                <div class="lq-taxonomy-eyebrow">DATA TAXONOMY NOTE</div>
+                <div class="lq-taxonomy-body">Employment classification and employer segmentation reflect the Home Credit international occupational taxonomy. In a US production deployment, occupation codes would map to SOC (Standard Occupational Classification) standards and employer segments to NAICS industry sectors.</div>
+            </div>
+            """, unsafe_allow_html=True)
+
             c1, c2 = st.columns(2)
             with c1:
                 income_type = st.selectbox(
-                    "Primary income category",
+                    "Primary Employment Status",
                     [
                         "Working",
                         "Commercial associate",
@@ -1594,13 +1629,13 @@ with tab1:
                     help="Primary stated income classification.",
                 )
                 employed_years = st.number_input(
-                    "Years in current line of work",
+                    "Role Tenure (Years)",
                     0.0, 40.0, 5.0, 0.5,
                     help="Total experience in occupation or tenure-style field used by pipeline.",
                 )
             with c2:
                 occupation = st.selectbox(
-                    "Occupation group",
+                    "Occupational Category",
                     [
                         "Laborers",
                         "Core staff",
@@ -1616,7 +1651,7 @@ with tab1:
                     help="Collapsed occupation taxonomy.",
                 )
                 org_type = st.selectbox(
-                    "Employer / organization segment",
+                    "Employer Sector",
                     [
                         "Business Entity Type 3",
                         "School",
@@ -1629,7 +1664,7 @@ with tab1:
                     help="High-level employer industry / legal form.",
                 )
             reg_city_work = st.checkbox(
-                "Work city differs from home city",
+                "Applicant Commutes Across Municipalities",
                 help="Applicants living in another city than workplace.",
             )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
