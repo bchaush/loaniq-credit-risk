@@ -5,8 +5,11 @@ import json
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+from pathlib import Path
+import os
 
-load_dotenv()
+ROOT_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT_DIR / ".env")
 
 # ── Load model artifacts ──────────────────────────────────────────
 model    = joblib.load("model/loaniq_model.pkl")
@@ -23,7 +26,12 @@ CAT_COLS = [
     "OCCUPATION_TYPE", "ORGANIZATION_TYPE"
 ]
 
-client = anthropic.Anthropic()
+api_key = os.getenv("ANTHROPIC_API_KEY")
+
+if not api_key:
+    client = None
+else:
+    client = anthropic.Anthropic(api_key=api_key)
 
 
 def encode_applicant(applicant: dict) -> np.ndarray:
@@ -70,7 +78,8 @@ def score_applicant(applicant: dict) -> dict:
 
 def explain_decision(applicant: dict, score_result: dict) -> str:
     """Call Claude API to generate plain-English explanation."""
-
+    if client is None:
+        return "AI explanation unavailable (missing API key)."
     # Pull key risk factors for the prompt
     prob    = score_result["default_probability"]
     dti     = applicant.get("debt_to_income", "N/A")
