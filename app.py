@@ -107,34 +107,43 @@ h1, h2, h3, h4, p, label, div {
     box-shadow: 0 0 0 3px rgba(59,130,246,.3), 0 0 28px -4px rgba(37,99,235,.4) !important;
 }
 
-/* BaseWeb selectbox popover (dropdown) background fix */
-div[data-baseweb="popover"],
-div[data-baseweb="popover"] div,
-[data-baseweb="popover"] [role="listbox"],
-[data-baseweb="menu"] ul,
-ul[role="listbox"] {
-    background: #10141d !important;
-    background-color: #10141d !important;
+/* BaseWeb selectbox popover — clean flat dark menu */
+[data-baseweb="popover"] > div,
+[data-baseweb="popover"] [role="listbox"] {
+    background: #0f1219 !important;
+    background-color: #0f1219 !important;
     border: 1px solid rgba(48,58,78,.95) !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,.72),
+                inset 0 1px 0 rgba(255,255,255,.04) !important;
+    padding: 4px !important;
+    overflow: hidden !important;
 }
-[data-baseweb="popover"] li,
 [data-baseweb="popover"] [role="option"],
-[data-baseweb="menu"] li,
-li[role="option"] {
-    background: #10141d !important;
-    background-color: #10141d !important;
-    color: #e8eaf2 !important;
+[data-baseweb="popover"] li {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    border-radius: 7px !important;
+    color: #c8cde0 !important;
     font-family: 'IBM Plex Sans', sans-serif !important;
     font-size: 13px !important;
+    font-weight: 400 !important;
+    padding: 8px 12px !important;
+    margin: 1px 0 !important;
 }
 [data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="popover"] li:hover,
-[data-baseweb="menu"] li:hover,
-li[role="option"]:hover {
-    background: rgba(59,130,246,.15) !important;
-    background-color: rgba(59,130,246,.15) !important;
-    color: #ffffff !important;
+[data-baseweb="popover"] li:hover {
+    background: rgba(59,130,246,.13) !important;
+    background-color: rgba(59,130,246,.13) !important;
+    color: #e8eaf2 !important;
+}
+[data-baseweb="popover"] [aria-selected="true"][role="option"] {
+    background: rgba(59,130,246,.18) !important;
+    color: #93c5fd !important;
+    font-weight: 500 !important;
 }
 
 /* Compliance / disclosure banners */
@@ -1423,7 +1432,7 @@ with tab1:
 
     st.markdown("""
     <div class="lq-compliance-banner">
-        <p>This pipeline simulates a US-style underwriting workflow. The underlying ML model is trained on the Home Credit international risk dataset due to US data privacy restrictions; the architecture and UI reflect standard Boston-area fintech deployment patterns.</p>
+        <p>US Fintech Prototype: This demo uses the Home Credit international risk dataset as a public proxy for borrower-risk modeling. The workflow, terminology, and compliance framing reflect a Boston-area fintech / US underwriting context. A production US deployment would require regulated US data validation, ECOA/fair-lending review, adverse-action reason governance, and ongoing model monitoring.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1622,7 +1631,7 @@ with tab1:
             st.markdown("""
             <div class="lq-taxonomy-banner">
                 <div class="lq-taxonomy-eyebrow">DATA TAXONOMY NOTE</div>
-                <div class="lq-taxonomy-body">Employment classification and employer segmentation reflect the Home Credit international occupational taxonomy. In a US production deployment, occupation codes would map to SOC (Standard Occupational Classification) standards and employer segments to NAICS industry sectors.</div>
+                <div class="lq-taxonomy-body">Employer and occupation categories reflect the Home Credit dataset taxonomy. In a US production deployment, these inputs would map to SOC (Standard Occupational Classification) occupation standards, NAICS industry sectors, and verified income and employment data sources where permitted.</div>
             </div>
             """, unsafe_allow_html=True)
 
