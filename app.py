@@ -1462,23 +1462,23 @@ with tab1:
                 amt_income  = st.number_input(
                     "Verified Gross Annual Income", 10000, 1000000, 60000, 5000,
                     format="%d",
-                    help="Total gross income per year referenced on this file (USD).",
+                    help="Total verified annual income (USD). Primary driver of repayment capacity and affordability.",
                 )
                 amt_annuity = st.number_input(
                     "Target Annual Debt Service", 1000, 200000, 12000, 500,
                     format="%d",
-                    help="Sum of installments due in the next 12 months (USD per year).",
+                    help="Total annual repayment obligation (USD). Key input for debt-to-income and affordability checks.",
                 )
             with c2:
                 amt_credit  = st.number_input(
                     "Requested Credit Facility", 5000, 2000000, 180000, 5000,
                     format="%d",
-                    help="Disbursed / requested credit amount excluding fees (USD).",
+                    help="Requested loan amount (USD). Used with income to assess leverage and credit risk.",
                 )
                 amt_goods   = st.number_input(
                     "Collateral Valuation", 5000, 2000000, 170000, 5000,
                     format="%d",
-                    help="Appraised or stated value of financed goods/collateral (USD).",
+                    help="Estimated value of pledged collateral (USD). Used to calculate loan-to-value and loss protection.",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1498,17 +1498,17 @@ with tab1:
             with c1:
                 ext_source_1 = st.number_input(
                     "Alternative Credit Composite A", 0.0, 1.0, 0.50, 0.01,
-                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_1 from the training dataset.",
+                    format="%.2f", help="Simulated alternative credit score (0–1). Proxy for borrower reliability when traditional bureau data is limited.",
                 )
             with c2:
                 ext_source_2 = st.number_input(
                     "Alternative Credit Composite B", 0.0, 1.0, 0.45, 0.01,
-                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_2 from the training dataset.",
+                    format="%.2f", help="Simulated alternative credit score (0–1). Secondary reliability signal — flags elevated risk when below 0.30.",
                 )
             with c3:
                 ext_source_3 = st.number_input(
                     "Alternative Credit Composite C", 0.0, 1.0, 0.50, 0.01,
-                    format="%.2f", help="Simulates non-FICO alternative credit scoring. Maps to normalized EXT_SOURCE_3 from the training dataset.",
+                    format="%.2f", help="Simulated alternative credit score (0–1). Tertiary composite used alongside A and B for ensemble risk profiling.",
                 )
             flags = []
             if ext_source_2 < 0.3: flags.append("Bureau score 2")
@@ -1519,13 +1519,13 @@ with tab1:
             with c1:
                 credit_inq = st.number_input(
                     "Hard inquiries (12 months)", 0, 20, 1,
-                    help="Count of credit inquiries in the rolling 12-month window.",
+                    help="Number of credit inquiries in the past 12 months. Higher values may indicate elevated credit demand or risk.",
                 )
             with c2:
                 region_rating = st.selectbox(
                     "Geographic Risk Tier",
                     [1, 2, 3],
-                    help="Internal regional risk band (1 = lowest risk tier in this demo).",
+                    help="Internal geographic risk band. Captures regional economic and default risk differences.",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1553,17 +1553,17 @@ with tab1:
                 age_years = st.number_input(
                     "Age (years)",
                     18, 75, 35,
-                    help="Primary applicant age used for employment-to-age ratios.",
+                    help="Applicant age in years. Used for lifecycle risk calibration and policy checks.",
                 )
                 cnt_children = st.number_input(
                     "Dependent children",
                     0, 10, 0,
-                    help="Number of children in the household.",
+                    help="Number of dependent children. Impacts disposable income and financial obligations.",
                 )
                 cnt_fam = st.number_input(
                     "Household size",
                     1, 15, 2,
-                    help="Total household members including applicant.",
+                    help="Total household members. Used to contextualize living costs and financial pressure.",
                 )
             with c2:
                 education = st.selectbox(
@@ -1575,7 +1575,7 @@ with tab1:
                         "Lower secondary",
                         "Academic degree",
                     ],
-                    help="Highest completed education category on file.",
+                    help="Highest completed education level. Correlates with income stability and long-term earning potential.",
                 )
                 family_status = st.selectbox(
                     "Marital / family status",
@@ -1586,7 +1586,7 @@ with tab1:
                         "Separated",
                         "Widow",
                     ],
-                    help="Recorded family status.",
+                    help="Recorded family status. Used as a proxy for household stability in this demo.",
                 )
                 housing_type = st.selectbox(
                     "Primary housing",
@@ -1598,20 +1598,20 @@ with tab1:
                         "Office apartment",
                         "Co-op apartment",
                     ],
-                    help="Main residence type at time of application.",
+                    help="Primary residence type. Indicates housing stability and potential asset ownership.",
                 )
             st.markdown('<div class="lq-checkbox-row-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
                 flag_own_car = st.checkbox(
                     "Owns a vehicle",
-                    help="Registered vehicle ownership flag.",
+                    help="Indicates vehicle ownership. May reflect asset base and mobility.",
                 )
             with c2:
                 flag_own_realty = st.checkbox(
                     "Owns residential real estate",
                     value=True,
-                    help="Title or mortgage on residential property.",
+                    help="Indicates property ownership. Strong signal of asset backing and financial stability.",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1647,12 +1647,12 @@ with tab1:
                         "Unemployed",
                         "Student",
                     ],
-                    help="Primary stated income classification.",
+                    help="Employment status at application. Key indicator of income continuity and repayment ability.",
                 )
                 employed_years = st.number_input(
                     "Role Tenure (Years)",
                     0.0, 40.0, 5.0, 0.5,
-                    help="Total experience in occupation or tenure-style field used by pipeline.",
+                    help="Years in current role or field. Longer tenure generally indicates greater income stability.",
                 )
             with c2:
                 occupation = st.selectbox(
@@ -1669,7 +1669,7 @@ with tab1:
                         "Secretaries",
                         "Unknown",
                     ],
-                    help="Collapsed occupation taxonomy.",
+                    help="Broad occupation group. Used to assess income predictability and sector-specific risk.",
                 )
                 org_type = st.selectbox(
                     "Employer Sector",
@@ -1682,11 +1682,11 @@ with tab1:
                         "Construction",
                         "Other",
                     ],
-                    help="High-level employer industry / legal form.",
+                    help="Employer industry segment. Captures sector-level income volatility and risk exposure.",
                 )
             reg_city_work = st.checkbox(
                 "Applicant Commutes Across Municipalities",
-                help="Applicants living in another city than workplace.",
+                help="Indicates whether the applicant works outside their home area. May reflect commuting burden and stability factors.",
             )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
