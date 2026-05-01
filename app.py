@@ -1887,7 +1887,7 @@ with tab1:
                     <div class="sc-metric"><div class="sc-label">Credit-to-Income</div><div class="sc-value">{dti:.2f}x</div></div>
                     <div class="sc-metric"><div class="sc-label">Debt Service / Income</div><div class="sc-value">{a2i:.1%}</div></div>
                     <div class="sc-metric"><div class="sc-label">Collateral Coverage</div><div class="sc-value">{ltv:.1%}</div></div>
-                    <div class="sc-metric"><div class="sc-label">Bureau composite avg</div><div class="sc-value">{bureau_avg:.2f}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Normalized Bureau Score (0–1)</div><div class="sc-value">{bureau_avg:.2f}</div></div>
                 </div>
                 <div class="feat-block-head">
                     <div class="sc-title">Global model drivers · training baseline</div>
@@ -1899,13 +1899,13 @@ with tab1:
                     <span class="feat-head-label feat-track-label">Contribution</span>
                     <span class="feat-val feat-val-head">Imp.</span>
                   </div>
-                  <div class="feat-row"><span class="feat-name">low_ext_score_3</span><div class="feat-bg"><div class="feat-fill" style="width:100%;background:#3b82f6"></div></div><span class="feat-val">0.148</span></div>
-                  <div class="feat-row"><span class="feat-name">ext_score_sum</span><div class="feat-bg"><div class="feat-fill" style="width:70%;background:#3b82f6"></div></div><span class="feat-val">0.104</span></div>
-                  <div class="feat-row"><span class="feat-name">EXT_SOURCE_3</span><div class="feat-bg"><div class="feat-fill" style="width:45%;background:#60a5fa"></div></div><span class="feat-val">0.066</span></div>
-                  <div class="feat-row"><span class="feat-name">EXT_SOURCE_2</span><div class="feat-bg"><div class="feat-fill" style="width:34%;background:#60a5fa"></div></div><span class="feat-val">0.050</span></div>
-                  <div class="feat-row"><span class="feat-name">low_ext_score_2</span><div class="feat-bg"><div class="feat-fill" style="width:32%;background:#60a5fa"></div></div><span class="feat-val">0.047</span></div>
-                  <div class="feat-row"><span class="feat-name">NAME_EDUCATION</span><div class="feat-bg"><div class="feat-fill" style="width:29%;background:#93c5fd"></div></div><span class="feat-val">0.042</span></div>
-                  <div class="feat-row"><span class="feat-name">is_unemployed</span><div class="feat-bg"><div class="feat-fill" style="width:26%;background:#93c5fd"></div></div><span class="feat-val">0.039</span></div>
+                  <div class="feat-row"><span class="feat-name">Alt. Credit Signal C (low)</span><div class="feat-bg"><div class="feat-fill" style="width:100%;background:#3b82f6"></div></div><span class="feat-val">0.148</span></div>
+                  <div class="feat-row"><span class="feat-name">Alt. Credit Composite (sum)</span><div class="feat-bg"><div class="feat-fill" style="width:70%;background:#3b82f6"></div></div><span class="feat-val">0.104</span></div>
+                  <div class="feat-row"><span class="feat-name">Alt. Credit Score C</span><div class="feat-bg"><div class="feat-fill" style="width:45%;background:#60a5fa"></div></div><span class="feat-val">0.066</span></div>
+                  <div class="feat-row"><span class="feat-name">Alt. Credit Score B</span><div class="feat-bg"><div class="feat-fill" style="width:34%;background:#60a5fa"></div></div><span class="feat-val">0.050</span></div>
+                  <div class="feat-row"><span class="feat-name">Alt. Credit Signal B (low)</span><div class="feat-bg"><div class="feat-fill" style="width:32%;background:#60a5fa"></div></div><span class="feat-val">0.047</span></div>
+                  <div class="feat-row"><span class="feat-name">Education Level</span><div class="feat-bg"><div class="feat-fill" style="width:29%;background:#93c5fd"></div></div><span class="feat-val">0.042</span></div>
+                  <div class="feat-row"><span class="feat-name">Unemployment Indicator</span><div class="feat-bg"><div class="feat-fill" style="width:26%;background:#93c5fd"></div></div><span class="feat-val">0.039</span></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
