@@ -438,8 +438,6 @@ button[kind="secondary"]:hover,
     border: 1px solid #1e2535 !important;
     border-radius: 8px !important;
     padding: .75rem 1rem !important;
-    border-left: 2px solid rgba(59,130,246,0.6);
-    box-shadow: 0 0 12px rgba(59,130,246,0.08);
 }
 [data-testid="stMetricLabel"] {
     font-size: 9px !important;
@@ -452,12 +450,6 @@ button[kind="secondary"]:hover,
     font-size: 18px !important;
     font-family: 'IBM Plex Mono', monospace !important;
     color: #e8eaf2 !important;
-}
-
-/* MODEL DETAILS card (markdown panel) — blue left edge */
-div[style*="margin-top:.875rem"][style*="background:#0f1219"] {
-    border-left: 2px solid rgba(59,130,246,0.6) !important;
-    box-shadow: 0 0 12px rgba(59,130,246,0.08);
 }
 
 /* ─── Warning ─── */
@@ -1987,11 +1979,26 @@ with tab2:
 # TAB 3 — MODEL
 # ══════════════════════════════════════════════════════════════════
 with tab3:
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("ROC-AUC",          metadata["roc_auc"])
-    m2.metric("Training samples", f"{metadata['n_train']:,}")
-    m3.metric("Test samples",     f"{metadata['n_test']:,}")
-    m4.metric("Default rate",     f"{metadata['default_rate']:.1%}")
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem;">
+  <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
+    <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">ROC-AUC</div>
+    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['roc_auc']:.4f}</div>
+  </div>
+  <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
+    <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">Training Samples</div>
+    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['n_train']:,}</div>
+  </div>
+  <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
+    <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">Test Samples</div>
+    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['n_test']:,}</div>
+  </div>
+  <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
+    <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">Default Rate</div>
+    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['default_rate']:.1%}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
     st.markdown(
         "<div style='color:#9ca3af; font-size:0.85rem; "
         "margin: 0.5rem 0 1.25rem;'>"
