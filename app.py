@@ -1960,6 +1960,12 @@ with tab2:
         "probabilities, and recommended credit dispositions for each applicant.</small>",
         unsafe_allow_html=True,
     )
+    st.markdown(
+        "<small style='color:#6b7280;'>Files with "
+        "missing or misnamed columns will be rejected "
+        "with validation feedback.</small>",
+        unsafe_allow_html=True,
+    )
 
     if uploaded:
         df_batch = pd.read_csv(uploaded)
@@ -1996,7 +2002,7 @@ with tab3:
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem;">
   <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
     <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">ROC-AUC</div>
-    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['roc_auc']:.4f}</div>
+    <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['roc_auc']:.3f}</div>
   </div>
   <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
     <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">Training Samples</div>
@@ -2025,7 +2031,7 @@ with tab3:
         unsafe_allow_html=True,
     )
     st.markdown(f"""
-    <div class="lq-form-section-head">
+    <div class="lq-form-section-head" style="margin-top:1.5rem;">
         <div class="lq-section-meta">
             <div class="lq-section-title-main">Configuration</div>
             <div class="lq-section-title-sub">Model details</div>
