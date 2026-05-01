@@ -452,6 +452,16 @@ button[kind="secondary"]:hover,
     color: #e8eaf2 !important;
 }
 
+/* Model tab (3rd pane): stat cards + MODEL DETAILS card — blue left edge */
+[data-testid="stTabs"] [role="tabpanel"]:nth-of-type(3) [data-testid="stMetric"] {
+    border-left: 2px solid rgba(59,130,246,0.6);
+    box-shadow: 0 0 12px rgba(59,130,246,0.08);
+}
+[data-testid="stTabs"] [role="tabpanel"]:nth-of-type(3) div[style*="margin-top:.875rem"][style*="background:#0f1219"] {
+    border-left: 2px solid rgba(59,130,246,0.6) !important;
+    box-shadow: 0 0 12px rgba(59,130,246,0.08);
+}
+
 /* ─── Warning ─── */
 [data-testid="stAlert"] {
     background: #1a1200 !important;
@@ -1984,14 +1994,35 @@ with tab3:
     m2.metric("Training samples", f"{metadata['n_train']:,}")
     m3.metric("Test samples",     f"{metadata['n_test']:,}")
     m4.metric("Default rate",     f"{metadata['default_rate']:.1%}")
+    st.markdown(
+        "<div style='color:#9ca3af; font-size:0.85rem; "
+        "margin: 0.5rem 0 1.25rem;'>"
+        "Model performance is within an acceptable range "
+        "for retail credit risk models, providing moderate "
+        "discriminatory power between default and "
+        "non-default outcomes. Decision thresholds are "
+        "calibrated to align with underwriting policy "
+        "bands (Approve / Review / Decline)."
+        "</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(f"""
     <div style="background:#0f1219;border:1px solid #1e2535;border-radius:10px;padding:1.125rem 1.375rem;margin-top:.875rem">
         <div class="section-title" style="margin-bottom:.75rem">Model details</div>
         <div style="font-size:12.5px;color:#8b90a8;line-height:1.7">
             <b style="color:#c8cbe0">Algorithm:</b> XGBoost with early stopping (242 rounds)<br>
             <b style="color:#c8cbe0">Class balancing:</b> scale_pos_weight = 11.4<br>
-            <b style="color:#c8cbe0">Features:</b> {metadata['n_features']} engineered from SQL pipeline<br>
-            <b style="color:#c8cbe0">Explainability:</b> Claude AI plain-English rationale per decision
+            <b style="color:#c8cbe0">Features:</b> {metadata['n_features']} engineered variables capturing credit behavior, income stability, and alternative scoring signals<br>
+            <b style="color:#c8cbe0">Explainability:</b> Post-model decision rationale generated using LLM-based summarization of key risk drivers
         </div>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown(
+        "<div style='color:#9ca3af; font-size:0.85rem; "
+        "margin-top:1rem;'>"
+        "The model is designed to support underwriting "
+        "decisions by estimating default risk and enabling "
+        "consistent, explainable credit assessments."
+        "</div>",
+        unsafe_allow_html=True,
+    )
