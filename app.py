@@ -151,8 +151,8 @@ h1, h2, h3, h4, p, label, div {
     position: relative;
     overflow: hidden;
     margin: -0.125rem 0 1.0625rem;
-    padding: .55rem .875rem .55rem .95rem;
-    border-radius: 999px;
+    padding: .75rem 1.125rem .75rem 1.25rem;
+    border-radius: 14px;
     border: 1px solid rgba(42,52,68,.93);
     background:
         radial-gradient(120% 140% at 0% -20%, rgba(59,130,246,.10) 0%, transparent 55%),
