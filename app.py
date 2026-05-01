@@ -1921,8 +1921,13 @@ with tab1:
 # ══════════════════════════════════════════════════════════════════
 with tab2:
     st.markdown("""
-    <div style="background:#0f1219;border:1px solid #1e2535;border-radius:10px;padding:1.375rem;margin-bottom:.875rem">
-        <div class="section-title">Batch Loan Screening</div>
+    <div class="lq-form-section-head">
+        <span class="lq-form-section-num">01</span>
+        <div class="lq-section-meta">
+            <div class="lq-section-title-main">Batch processing</div>
+            <div class="lq-section-title-sub">Batch loan screening</div>
+            <div class="lq-section-desc-main">Upload applicant data to score multiple loan applications using the same underwriting model and decision logic.</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     st.info(
@@ -1979,6 +1984,16 @@ with tab2:
 # TAB 3 — MODEL
 # ══════════════════════════════════════════════════════════════════
 with tab3:
+    st.markdown("""
+    <div class="lq-form-section-head">
+        <span class="lq-form-section-num">01</span>
+        <div class="lq-section-meta">
+            <div class="lq-section-title-main">Model</div>
+            <div class="lq-section-title-sub">Model performance &amp; architecture</div>
+            <div class="lq-section-desc-main">Core model metrics and training configuration used for credit risk estimation.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown(f"""
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem;">
   <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
@@ -2012,14 +2027,18 @@ with tab3:
         unsafe_allow_html=True,
     )
     st.markdown(f"""
-    <div style="background:#0f1219;border:1px solid #1e2535;border-radius:10px;padding:1.125rem 1.375rem;margin-top:.875rem">
-        <div class="section-title" style="margin-bottom:.75rem">Model details</div>
-        <div style="font-size:12.5px;color:#8b90a8;line-height:1.7">
+    <div class="lq-form-section-head">
+        <span class="lq-form-section-num">02</span>
+        <div class="lq-section-meta">
+            <div class="lq-section-title-main">Configuration</div>
+            <div class="lq-section-title-sub">Model details</div>
+        </div>
+    </div>
+    <div style="font-size:12.5px;color:#8b90a8;line-height:1.7;margin-top:.75rem">
             <b style="color:#c8cbe0">Algorithm:</b> XGBoost with early stopping (242 rounds)<br>
             <b style="color:#c8cbe0">Class balancing:</b> scale_pos_weight = 11.4<br>
             <b style="color:#c8cbe0">Features:</b> {metadata['n_features']} engineered variables capturing credit behavior, income stability, and alternative scoring signals<br>
             <b style="color:#c8cbe0">Explainability:</b> Post-model decision rationale generated using LLM-based summarization of key risk drivers
-        </div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown(
