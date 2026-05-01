@@ -1922,7 +1922,6 @@ with tab1:
 with tab2:
     st.markdown("""
     <div class="lq-form-section-head">
-        <span class="lq-form-section-num">01</span>
         <div class="lq-section-meta">
             <div class="lq-section-title-main">Batch processing</div>
             <div class="lq-section-title-sub">Batch loan screening</div>
@@ -1986,7 +1985,6 @@ with tab2:
 with tab3:
     st.markdown("""
     <div class="lq-form-section-head">
-        <span class="lq-form-section-num">01</span>
         <div class="lq-section-meta">
             <div class="lq-section-title-main">Model</div>
             <div class="lq-section-title-sub">Model performance &amp; architecture</div>
@@ -2028,7 +2026,6 @@ with tab3:
     )
     st.markdown(f"""
     <div class="lq-form-section-head">
-        <span class="lq-form-section-num">02</span>
         <div class="lq-section-meta">
             <div class="lq-section-title-main">Configuration</div>
             <div class="lq-section-title-sub">Model details</div>
