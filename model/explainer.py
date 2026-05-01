@@ -108,25 +108,25 @@ Do not use HTML tags or markdown code blocks.
 Do not mention EXT_SOURCE, column names, or 
 internal variable names.
 
-Use this exact output structure and nothing else:
+Use this exact output structure and nothing else.
+Do not include a title or header line.
+Start your response directly with "Summary:"
 
-UNDERWRITING RATIONALE
-
-Summary
+Summary:
 [1-2 sentences — internal analyst tone, 
 use "the applicant" not "you"]
 
-Strengths
+Strengths:
 - [bullet]
 - [bullet]
 - [bullet]
 
-Key Risks
+Key Risks:
 - [bullet]
 - [bullet]
 - [bullet]
 
-Decision
+Decision:
 [1-2 sentences explaining disposition — 
 use "the applicant" not "you", no customer language]
 
