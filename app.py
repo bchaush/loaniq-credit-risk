@@ -438,6 +438,8 @@ button[kind="secondary"]:hover,
     border: 1px solid #1e2535 !important;
     border-radius: 8px !important;
     padding: .75rem 1rem !important;
+    border-left: 2px solid rgba(59,130,246,0.6);
+    box-shadow: 0 0 12px rgba(59,130,246,0.08);
 }
 [data-testid="stMetricLabel"] {
     font-size: 9px !important;
@@ -452,12 +454,8 @@ button[kind="secondary"]:hover,
     color: #e8eaf2 !important;
 }
 
-/* Model tab (3rd pane): stat cards + MODEL DETAILS card — blue left edge */
-[data-testid="stTabs"] [role="tabpanel"]:nth-of-type(3) [data-testid="stMetric"] {
-    border-left: 2px solid rgba(59,130,246,0.6);
-    box-shadow: 0 0 12px rgba(59,130,246,0.08);
-}
-[data-testid="stTabs"] [role="tabpanel"]:nth-of-type(3) div[style*="margin-top:.875rem"][style*="background:#0f1219"] {
+/* MODEL DETAILS card (markdown panel) — blue left edge */
+div[style*="margin-top:.875rem"][style*="background:#0f1219"] {
     border-left: 2px solid rgba(59,130,246,0.6) !important;
     box-shadow: 0 0 12px rgba(59,130,246,0.08);
 }
