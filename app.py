@@ -1702,19 +1702,19 @@ with tab1:
         <div class="derived-bar">
             <div class="db-title">Derived risk metrics (live)</div>
             <div class="lq-derived-grid">
-                <div class="lq-derived-cell">
-                    <div class="lq-derived-label">Debt-to-income</div>
+                <div class="lq-derived-cell" title="Requested credit amount divided by annual income. Measures borrower leverage relative to income.">
+                    <div class="lq-derived-label">Credit-to-Income</div>
                     <div class="lq-derived-value">{dti:.1f}x</div>
                 </div>
-                <div class="lq-derived-cell">
-                    <div class="lq-derived-label">Annuity ÷ income</div>
+                <div class="lq-derived-cell" title="Annual repayment obligation divided by annual income. Core affordability metric.">
+                    <div class="lq-derived-label">Debt Service / Income</div>
                     <div class="lq-derived-value">{a2i:.1%}</div>
                 </div>
-                <div class="lq-derived-cell">
-                    <div class="lq-derived-label">Loan-to-value</div>
+                <div class="lq-derived-cell" title="Collateral value divided by requested credit amount. Higher values indicate stronger collateral protection.">
+                    <div class="lq-derived-label">Collateral Coverage</div>
                     <div class="lq-derived-value">{ltv:.1%}</div>
                 </div>
-                <div class="lq-derived-cell">
+                <div class="lq-derived-cell" title="Estimated years to repay the requested credit based on annual debt service.">
                     <div class="lq-derived-label">Payoff horizon (est.)</div>
                     <div class="lq-derived-value">{payoff_display}</div>
                 </div>
@@ -1841,7 +1841,7 @@ with tab1:
             #    This prevents raw **bold** and \n from appearing in the UI.
             explanation_html = ""
             if expl:
-                expl_rendered = md_to_html(expl)
+                expl_rendered = expl if "<" in expl and ">" in expl else md_to_html(expl)
                 explanation_html = f"""
                 <div class="explain-panel">
                     <div class="explain-eyebrow">Underwriting rationale</div>
@@ -1888,14 +1888,14 @@ with tab1:
                     <span class="sc-head-end">Snapshot</span>
                 </div>
                 <div class="sc-metric-grid">
-                    <div class="sc-metric"><div class="sc-label">Debt-to-income</div><div class="sc-value">{dti:.2f}x</div></div>
-                    <div class="sc-metric"><div class="sc-label">Annuity / income</div><div class="sc-value">{a2i:.1%}</div></div>
-                    <div class="sc-metric"><div class="sc-label">Loan-to-value</div><div class="sc-value">{ltv:.1%}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Credit-to-Income</div><div class="sc-value">{dti:.2f}x</div></div>
+                    <div class="sc-metric"><div class="sc-label">Debt Service / Income</div><div class="sc-value">{a2i:.1%}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Collateral Coverage</div><div class="sc-value">{ltv:.1%}</div></div>
                     <div class="sc-metric"><div class="sc-label">Bureau composite avg</div><div class="sc-value">{bureau_avg:.2f}</div></div>
                 </div>
                 <div class="feat-block-head">
-                    <div class="sc-title">Historical feature importance · top&nbsp;seven</div>
-                    <div class="sc-subtitle">Relative gain from&nbsp;baseline&nbsp;xgboost&nbsp;trainer (not individualized SHAP)</div>
+                    <div class="sc-title">Global model drivers · training baseline</div>
+                    <div class="sc-subtitle">Relative gain from model training. Global view only — not individualized SHAP attribution for this applicant.</div>
                 </div>
                 <div class="feat-list">
                   <div class="feat-header-row">
