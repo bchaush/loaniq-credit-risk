@@ -1840,15 +1840,7 @@ with tab1:
             # ── FIX 2: Convert Claude's markdown to HTML before injecting.
             #    This prevents raw **bold** and \n from appearing in the UI.
             explanation_html = ""
-            if expl:
-                expl_rendered = expl.replace("\n\n", "<br><br>").replace("\n-", "<br>•")
-                explanation_html = f"""
-                <div class="explain-panel">
-                    <div class="explain-eyebrow">Underwriting rationale</div>
-                    <div class="explain-inner">
-                      <div class="explain-body-inner">{expl_rendered}</div>
-                    </div>
-                </div>"""
+            explanation_text = expl if expl else ""
 
             st.markdown(f"""
             <div class="decision-hero dh-{css}">
@@ -1872,9 +1864,13 @@ with tab1:
                   </div>
                   <div class="thresh-zones"><span>Higher&nbsp;risk</span><span>Review</span><span>Approve</span></div>
                 </div>
-                {explanation_html}
             </div>
             """, unsafe_allow_html=True)
+
+            if explanation_text:
+                st.markdown("---")
+                st.markdown("**Underwriting Rationale**")
+                st.markdown(explanation_text)
 
             # Supporting metrics + feature importance
             st.markdown(f"""
