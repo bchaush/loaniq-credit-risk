@@ -96,9 +96,42 @@ def explain_decision(applicant: dict, score_result: dict) -> str:
     income  = applicant.get("NAME_INCOME_TYPE", "N/A")
     inq     = applicant.get("credit_inquiries_year", 0)
 
-    prompt = f"""You are a credit analyst at LoanIQ, a responsible lending platform.
-A loan application has been evaluated by our ML model. Write a clear, plain-English
-explanation of the decision for the applicant. Be professional but empathetic.
+    prompt = f"""You are an internal underwriting analyst at LoanIQ 
+documenting a credit decision for internal review.
+Do not address the applicant directly.
+Do not use "Thank you", "we appreciate", "we recommend",
+"a member of our team", or any customer-facing language.
+Do not use "your application" as the subject.
+Write for a senior credit risk manager reviewing 
+an internal memo.
+Do not use HTML tags or markdown code blocks.
+Do not mention EXT_SOURCE, column names, or 
+internal variable names.
+
+Use this exact output structure and nothing else:
+
+UNDERWRITING RATIONALE
+
+Summary
+[1-2 sentences — internal analyst tone, 
+use "the applicant" not "you"]
+
+Strengths
+- [bullet]
+- [bullet]
+- [bullet]
+
+Key Risks
+- [bullet]
+- [bullet]
+- [bullet]
+
+Decision
+[1-2 sentences explaining disposition — 
+use "the applicant" not "you", no customer language]
+
+Do not add any sections beyond these four.
+Do not add any closing remarks or sign-off.
 
 APPLICATION DATA:
 - Decision: {score_result['decision']} ({score_result['risk_tier']})
@@ -115,14 +148,8 @@ APPLICATION DATA:
 - Loan-to-Value Ratio: {ltv}
 - Credit Inquiries (last year): {inq}
 
-Write a 3-paragraph explanation:
-1. State the decision and overall risk assessment in 1-2 sentences.
-2. List the 2-3 strongest factors that drove this decision (positive or negative).
-3. If declined or review: give 1-2 concrete steps the applicant could take to
-   improve their profile. If approved: confirm what made them a strong applicant.
-
-Keep it under 200 words. Do not mention internal model names or scores directly —
-translate everything into plain language a non-technical person would understand."""
+Keep it under 150 words. Use the exact four-section 
+structure above. Internal analyst tone throughout."""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
