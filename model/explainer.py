@@ -149,7 +149,9 @@ APPLICATION DATA:
 - Credit Inquiries (last year): {inq}
 
 Keep it under 150 words. Use the exact four-section 
-structure above. Internal analyst tone throughout."""
+structure above. Internal analyst tone throughout.
+Refer to the collateral metric as 
+'collateral coverage ratio', not 'loan-to-value'."""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",

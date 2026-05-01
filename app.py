@@ -1925,8 +1925,21 @@ with tab2:
         <div class="section-title">Batch Loan Screening</div>
     </div>
     """, unsafe_allow_html=True)
-    st.info("Upload a CSV with pre-engineered features to score multiple applications at once.")
-    st.markdown("**Required columns:** `debt_to_income`, `annuity_to_income`, `EXT_SOURCE_2`, `EXT_SOURCE_3`, `age_years`, `ext_score_sum`")
+    st.info(
+        "Upload a CSV file containing applicant-level features to score multiple loan "
+        "applications simultaneously. Batch scoring uses the same underwriting model and "
+        "decision logic as the single applicant workflow."
+    )
+    st.markdown(
+        "**Required fields:** Debt-to-Income · Debt Service / Income · "
+        "Alt. Credit Score B · Alt. Credit Score C · Applicant Age · "
+        "Alt. Credit Composite (sum)"
+    )
+    st.markdown(
+        "<small style='color:#6b7280;'>Column names must match: debt_to_income, annuity_to_income, "
+        "EXT_SOURCE_2, EXT_SOURCE_3, age_years, ext_score_sum</small>",
+        unsafe_allow_html=True,
+    )
 
     sample_df = pd.DataFrame([{
         "debt_to_income": 3.0, "annuity_to_income": 0.20,
@@ -1938,6 +1951,11 @@ with tab2:
     st.download_button("Download sample CSV template", sample_df.to_csv(index=False),
                        "loaniq_sample.csv", "text/csv")
     uploaded = st.file_uploader("Upload CSV", type="csv", label_visibility="collapsed")
+    st.markdown(
+        "<small style='color:#6b7280;'>Output: A scored dataset with risk scores, default "
+        "probabilities, and recommended credit dispositions for each applicant.</small>",
+        unsafe_allow_html=True,
+    )
 
     if uploaded:
         df_batch = pd.read_csv(uploaded)
