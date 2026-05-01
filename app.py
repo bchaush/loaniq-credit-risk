@@ -1841,7 +1841,7 @@ with tab1:
             #    This prevents raw **bold** and \n from appearing in the UI.
             explanation_html = ""
             if expl:
-                expl_rendered = expl if "<" in expl and ">" in expl else md_to_html(expl)
+                expl_rendered = expl.replace("\n\n", "<br><br>").replace("\n-", "<br>•")
                 explanation_html = f"""
                 <div class="explain-panel">
                     <div class="explain-eyebrow">Underwriting rationale</div>
