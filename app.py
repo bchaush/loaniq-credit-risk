@@ -1374,7 +1374,7 @@ st.markdown(f"""
     <div class="perf-stack">
         <div class="perf-metric">
             <span class="perf-metric-label">ROC-AUC</span>
-            <span class="perf-metric-value perf-metric-value-accent">{metadata['roc_auc']}</span>
+            <span class="perf-metric-value perf-metric-value-accent">{metadata['roc_auc']:.3f}</span>
         </div>
         <div class="perf-metric">
             <span class="perf-metric-label">Training samples</span>
