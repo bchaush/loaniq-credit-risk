@@ -1344,6 +1344,9 @@ hr { border-color: #1e2535 !important; margin: .75rem 0 !important; }
     .lq-form-section-head { flex-direction: column; gap: 10px; }
     .lq-form-section-num { width: 34px; height: 34px; }
     .lq-derived-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .model-stat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
     .dh-label { font-size: 30px !important; }
     .dh-metric-value { font-size: 21px !important; }
     .await-panel-inner { padding-left: 1.125rem; padding-right: 1.125rem; }
@@ -2036,7 +2039,7 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
     st.markdown(f"""
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem;">
+<div class="model-stat-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem;">
   <div style="background:#0f1219;border:1px solid #1e2535;border-left:2px solid rgba(59,130,246,0.6);box-shadow:0 0 12px rgba(59,130,246,0.08);border-radius:8px;padding:.875rem 1rem;">
     <div style="font-size:.7rem;font-weight:600;letter-spacing:.08em;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem;">ROC-AUC</div>
     <div style="font-size:1.4rem;font-weight:700;color:#e8eaf2;">{metadata['roc_auc']:.3f}</div>
