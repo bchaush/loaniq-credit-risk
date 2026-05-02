@@ -1990,7 +1990,7 @@ with tab2:
             for col in expected_cols:
                 if col not in df_batch.columns:
                     df_batch[col] = 0
-            df_batch = df_batch[[c for c in expected_cols if c in df_batch.columns]]
+            df_batch = df_batch[expected_cols]
             if missing_cols:
                 st.warning(
                     f"{len(missing_cols)} columns missing from upload "
