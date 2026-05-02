@@ -96,42 +96,68 @@ def explain_decision(applicant: dict, score_result: dict) -> str:
     income  = applicant.get("NAME_INCOME_TYPE", "N/A")
     inq     = applicant.get("credit_inquiries_year", 0)
 
-    prompt = f"""You are an internal underwriting analyst at LoanIQ 
-documenting a credit decision for internal review.
-Do not address the applicant directly.
-Do not use "Thank you", "we appreciate", "we recommend",
-"a member of our team", or any customer-facing language.
-Do not use "your application" as the subject.
-Write for a senior credit risk manager reviewing 
-an internal memo.
-Do not use HTML tags or markdown code blocks.
-Do not mention EXT_SOURCE, column names, or 
-internal variable names.
+    prompt = f"""You are an internal underwriting analyst at LoanIQ documenting a credit decision for internal review.
+Write strictly for a senior credit risk manager.
 
-Use this exact output structure and nothing else.
-Do not include a title or header line.
-Start your response directly with "Summary:"
+Do not address the applicant directly.
+Do not use customer-facing language.
+Do not use "your application".
+Do not include HTML or markdown.
+Do not mention variable names or dataset fields.
+Do not add closing remarks.
+
+STRICT METRIC RULES:
+
+Collateral Coverage:
+>1.20 → Strength (strong collateral buffer)
+0.80–1.20 → Ignore
+<0.80 → Risk (insufficient collateral)
+
+Credit-to-Income:
+<1.5x → Strength (low leverage)
+1.5–3.0x → Ignore
+>3.0x → Risk (elevated leverage)
+
+Debt Service / Income:
+<30% → Strength (manageable burden)
+30–50% → Ignore
+>50% → Risk (high burden)
+
+Credit Scores:
+>0.70 → Strength
+0.40–0.70 → Ignore
+<0.40 → Risk
+
+Employment:
+Employed + tenure → Strength
+Unemployed → Risk
+
+STRICT RULES:
+
+Strengths = ONLY strong metrics
+Risks = ONLY weak metrics
+Do NOT mention neutral metrics
+No hedging words (e.g. "somewhat", "may")
+Each bullet must reference a metric and its value
+No generic statements
+
+OUTPUT FORMAT:
 
 Summary:
-[1-2 sentences — internal analyst tone, 
-use "the applicant" not "you"]
+[1–2 sentences — decision + overall risk]
 
 Strengths:
-- [bullet]
-- [bullet]
-- [bullet]
+- ...
 
 Key Risks:
-- [bullet]
-- [bullet]
-- [bullet]
+- ...
 
 Decision:
-[1-2 sentences explaining disposition — 
-use "the applicant" not "you", no customer language]
+[1–2 sentences — why decision triggered]
 
-Do not add any sections beyond these four.
-Do not add any closing remarks or sign-off.
+Keep under 150 words.
+Use "the applicant".
+Use "collateral coverage ratio" terminology.
 
 APPLICATION DATA:
 - Decision: {score_result['decision']} ({score_result['risk_tier']})
@@ -147,11 +173,7 @@ APPLICATION DATA:
 - Income Type: {income}
 - Loan-to-Value Ratio: {ltv}
 - Credit Inquiries (last year): {inq}
-
-Keep it under 150 words. Use the exact four-section 
-structure above. Internal analyst tone throughout.
-Refer to the collateral metric as 
-'collateral coverage ratio', not 'loan-to-value'."""
+"""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
