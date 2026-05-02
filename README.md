@@ -24,11 +24,11 @@ Basel III capital frameworks and FCRA-style adverse-action rules expect transpar
 
 ## How it works
 
-**Step 1 — Feature engineering:** **34** features engineered from **5** raw Home Credit tables through a **SQLite** pipeline—bureau history, application attributes, installment behavior, and balance dynamics.
+Step 1 — Feature engineering: 34 features engineered from 5 raw Home Credit tables through a SQLite pipeline—bureau history, application attributes, installment behavior, and balance dynamics.
 
-**Step 2 — ML scoring:** **XGBoost** classifier on **246,008** training rows (**8.1%** default rate). **ROC-AUC** **0.7635**, **PR-AUC** **0.2502**. Three bands: **Approved** default prob **&lt;15%** · **Review** **15–35%** · **Declined** **&gt;35%**.
+Step 2 — ML scoring: XGBoost classifier on 246,008 training rows (8.1% default rate). ROC-AUC 0.7635, PR-AUC 0.2502. Three bands: Approved default prob &lt;15% · Review 15–35% · Declined &gt;35%.
 
-**Step 3 — LLM explainability:** **Claude** API drafts a structured underwriting memo per decision—risk drivers, offsets, and why the band triggered.
+Step 3 — LLM explainability: Claude API drafts a structured underwriting memo per decision—risk drivers, offsets, and why the band triggered.
 
 ---
 
@@ -66,10 +66,10 @@ Decline aligns with elevated default probability and thin mitigants on affordabi
 
 ## Key results
 
-- ✅ **ROC-AUC:** **0.7635**
-- ✅ **PR-AUC:** **0.2502**
-- ✅ **Training n:** **246,008** · **Test n:** **61,503** · **Default rate:** **8.1%**
-- ✅ **Thresholds:** **&lt;15%** approve · **15–35%** manual review · **&gt;35%** decline
+- ROC-AUC: 0.7635
+- PR-AUC: 0.2502
+- Training n: 246,008 · Test n: 61,503 · Default rate: 8.1%
+- Thresholds: &lt;15% approve · 15–35% manual review · &gt;35% decline
 
 ---
 
@@ -89,4 +89,4 @@ loaniq-credit-risk/
 
 ## About the author
 
-Built by **Bora Chaush** — MS Business Analytics @ Brandeis International Business School. Background in finance, accounting (**PwC**), and ML engineering. [Connect on LinkedIn](https://www.linkedin.com/in/bora-chaush-90b257239).
+Built by Bora Chaush — MS Business Analytics @ Brandeis International Business School. Background in finance, accounting (PwC), and ML engineering. [Connect on LinkedIn](https://www.linkedin.com/in/bora-chaush-90b257239).
