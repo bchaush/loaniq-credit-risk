@@ -1971,6 +1971,19 @@ with tab2:
         df_batch = pd.read_csv(uploaded)
         st.success(f"Loaded {len(df_batch):,} applications")
         if st.button("Run batch scoring", type="primary"):
+            expected_cols = metadata["features"]
+            missing_cols = [c for c in expected_cols if c not in df_batch.columns]
+            for col in expected_cols:
+                if col not in df_batch.columns:
+                    df_batch[col] = 0
+            if missing_cols:
+                st.warning(
+                    f"{len(missing_cols)} columns missing from upload "
+                    f"and defaulted to 0. Results may differ from "
+                    f"single applicant scoring for affected rows. "
+                    f"Missing: {', '.join(missing_cols[:5])}"
+                    + (" and more." if len(missing_cols) > 5 else ".")
+                )
             results, prog = [], st.progress(0)
             for i, row in df_batch.iterrows():
                 results.append(score_applicant(row.to_dict()))
