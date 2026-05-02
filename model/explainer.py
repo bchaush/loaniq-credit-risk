@@ -150,6 +150,13 @@ Do NOT mention neutral metrics
 No hedging words (e.g. "somewhat", "may")
 Each bullet must reference a metric and its value
 No generic statements
+If no metrics qualify as strengths, write:
+"Strengths: None identified."
+If no metrics qualify as risks, write:
+"Key Risks: None identified."
+Do not fabricate or reinterpret metrics to fill a section.
+Annuity-to-Income is a raw ratio (e.g. 1.0 = 100%).
+Apply thresholds to the raw value directly.
 
 OUTPUT FORMAT:
 Start directly with "Summary:".
