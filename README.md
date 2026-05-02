@@ -2,7 +2,6 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-app-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
 ![XGBoost](https://img.shields.io/badge/XGBoost-classifier-ECB900?style=flat-square)
 ![Claude](https://img.shields.io/badge/Anthropic-Claude_API-D4A574?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 # LoanIQ — Credit Risk Intelligence
 
