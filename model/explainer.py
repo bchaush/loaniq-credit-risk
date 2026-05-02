@@ -109,6 +109,16 @@ Do not add closing remarks.
 STRICT METRIC RULES:
 
 Collateral Coverage:
+IMPORTANT:
+The value provided in APPLICATION DATA is already the
+collateral coverage ratio (collateral ÷ loan).
+
+It is NOT loan-to-value.
+Do NOT invert it.
+Do NOT reinterpret it.
+
+Use the value exactly as provided.
+
 >1.20 → Strength (strong collateral buffer)
 0.80–1.20 → Ignore
 <0.80 → Risk (insufficient collateral)
@@ -142,6 +152,8 @@ Each bullet must reference a metric and its value
 No generic statements
 
 OUTPUT FORMAT:
+Start directly with "Summary:".
+Do not include any title, header, or preamble before it.
 
 Summary:
 [1–2 sentences — decision + overall risk]
