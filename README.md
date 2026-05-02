@@ -18,7 +18,7 @@
 
 Most production credit models stop at a probability or score. That is not enough for policy teams or regulators.
 
-**Basel III** capital frameworks and **FCRA**-style adverse-action rules expect transparent reasons when credit is denied or priced aggressively. LoanIQ wires explainability into the same path as the score—so risk and narrative stay aligned.
+Basel III capital frameworks and FCRA-style adverse-action rules expect transparent reasons when credit is denied or priced aggressively. LoanIQ wires explainability into the same path as the score—so risk and narrative stay aligned.
 
 ---
 
