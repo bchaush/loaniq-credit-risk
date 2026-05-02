@@ -2001,8 +2001,17 @@ with tab2:
                 )
             results, prog = [], st.progress(0)
             for i, row in df_batch.iterrows():
-                results.append(score_applicant(row.to_dict()))
-                prog.progress((i + 1) / len(df_batch))
+                try:
+                    results.append(score_applicant(row.to_dict()))
+                    prog.progress((i + 1) / len(df_batch))
+                except Exception as e:
+                    st.error(
+                        f"Scoring failed on row {i}. "
+                        f"Error: {str(e)}. "
+                        f"Check that all numeric columns contain "
+                        f"valid numbers with no missing values."
+                    )
+                    st.stop()
             df_out = pd.concat([df_batch.reset_index(drop=True), pd.DataFrame(results)], axis=1)
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("Total",    len(df_out))
