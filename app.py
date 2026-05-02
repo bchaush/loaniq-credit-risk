@@ -1969,6 +1969,20 @@ with tab2:
 
     if uploaded:
         df_batch = pd.read_csv(uploaded)
+        REQUIRED_COLS = [
+            "debt_to_income", "annuity_to_income",
+            "EXT_SOURCE_2", "EXT_SOURCE_3",
+            "age_years", "ext_score_sum",
+        ]
+        missing_required = [c for c in REQUIRED_COLS if c not in df_batch.columns]
+        if missing_required:
+            st.error(
+                f"Upload rejected. Missing required columns: "
+                f"{', '.join(missing_required)}. "
+                f"Download the sample CSV template for the "
+                f"correct column names."
+            )
+            st.stop()
         st.success(f"Loaded {len(df_batch):,} applications")
         if st.button("Run batch scoring", type="primary"):
             expected_cols = metadata["features"]
@@ -1976,6 +1990,7 @@ with tab2:
             for col in expected_cols:
                 if col not in df_batch.columns:
                     df_batch[col] = 0
+            df_batch = df_batch[[c for c in expected_cols if c in df_batch.columns]]
             if missing_cols:
                 st.warning(
                     f"{len(missing_cols)} columns missing from upload "
