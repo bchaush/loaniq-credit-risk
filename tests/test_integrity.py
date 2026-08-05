@@ -238,3 +238,169 @@ def test_inference_uses_best_iteration_not_full_rounds():
     p_best = model.predict_proba(X, iteration_range=(0, meta["n_trees_served"]))[0][1]
     p_helper = expl._predict_proba_best(X)
     assert p_helper == pytest.approx(float(p_best))
+
+
+def test_no_stale_user_facing_phrases():
+    tracked = [
+        ROOT / "app.py",
+        ROOT / "model" / "explainer.py",
+        ROOT / "README.md",
+    ]
+    banned = (
+        "Default probability",
+        "Default Probability",
+        "Loan-to-Value Ratio",
+        "242 rounds",
+    )
+    for path in tracked:
+        text = path.read_text(encoding="utf-8")
+        for phrase in banned:
+            assert phrase not in text, f"{phrase!r} still in {path.name}"
+
+
+def test_artifact_paths_are_root_dir_relative():
+    src = (ROOT / "model" / "explainer.py").read_text(encoding="utf-8")
+    assert 'ROOT_DIR / "model" / "loaniq_model.pkl"' in src
+    assert 'ROOT_DIR / "model" / "preprocessing.pkl"' in src
+    assert 'ROOT_DIR / "model" / "metadata.json"' in src
+    assert "joblib.load(" in src and "ROOT_DIR" in src
+
+
+def test_anthropic_failure_does_not_block_scoring(monkeypatch):
+    from model import explainer as expl
+
+    applicant = {
+        "AMT_INCOME_TOTAL": 45000,
+        "AMT_CREDIT": 180000,
+        "AMT_ANNUITY": 9000,
+        "AMT_GOODS_PRICE": 170000,
+        "debt_to_income": 4.0,
+        "annuity_to_income": 0.20,
+        "loan_term_implied": 20,
+        "ltv_ratio": 0.94,
+        "age_years": 34,
+        "employed_years": 3.5,
+        "employment_to_age_ratio": 0.10,
+        "is_unemployed": 0,
+        "EXT_SOURCE_1": 0.48,
+        "EXT_SOURCE_2": 0.28,
+        "EXT_SOURCE_3": 0.31,
+        "ext_score_sum": 1.07,
+        "low_ext_score_2": 1,
+        "low_ext_score_3": 0,
+        "CNT_CHILDREN": 1,
+        "CNT_FAM_MEMBERS": 3,
+        "FLAG_OWN_CAR": 0,
+        "FLAG_OWN_REALTY": 1,
+        "many_children": 0,
+        "REGION_RATING_CLIENT": 2,
+        "REG_CITY_NOT_WORK_CITY": 0,
+        "FLAG_DOCUMENT_3": 1,
+        "credit_inquiries_year": 2,
+        "high_inquiry_flag": 0,
+        "NAME_INCOME_TYPE": "Working",
+        "NAME_EDUCATION_TYPE": "Secondary / secondary special",
+        "NAME_FAMILY_STATUS": "Married",
+        "NAME_HOUSING_TYPE": "House / apartment",
+        "OCCUPATION_TYPE": "Laborers",
+        "ORGANIZATION_TYPE": "Business Entity Type 3",
+    }
+
+    class _Boom:
+        def create(self, *args, **kwargs):
+            raise RuntimeError("simulated Anthropic outage")
+
+    class _Client:
+        messages = _Boom()
+
+    monkeypatch.setattr(expl, "client", _Client())
+    scored = expl.score_applicant(applicant)
+    assert "decision" in scored
+    assert "default_probability" in scored
+    assert scored["decision"] in {"APPROVED", "REVIEW", "DECLINED"}
+
+    explanation = expl.explain_decision(applicant, scored)
+    assert "AI explanation unavailable" in explanation
+
+    full = expl.full_assessment(applicant)
+    assert full["decision"] == scored["decision"]
+    assert "AI explanation unavailable" in full["explanation"]
+
+
+def test_metadata_driver_order_used_in_app():
+    app_src = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert 'metadata.get("top_features"' in app_src
+    assert "Imp." not in app_src
+    # Rank-only display: feat-val shows #{rank}, not fabricated magnitude.
+    assert "#{rank}" in app_src
+    meta = __import__("json").loads(
+        (ROOT / "model" / "metadata.json").read_text(encoding="utf-8")
+    )
+    assert isinstance(meta.get("top_features"), list)
+    assert len(meta["top_features"]) >= 1
+
+
+def test_zero_tracked_secrets():
+    secret_names = {
+        "API_key.txt",
+        ".env",
+        "secrets.toml",
+        "credentials.json",
+        "id_rsa",
+    }
+    tracked = __import__("subprocess").check_output(
+        ["git", "-C", str(ROOT), "ls-files"],
+        text=True,
+    ).splitlines()
+    offenders = [
+        path
+        for path in tracked
+        if Path(path).name in secret_names
+        or path.endswith(".pem")
+        or "API_key" in path
+    ]
+    assert offenders == []
+
+
+def test_boundary_precision_display_and_unrounded_probability(monkeypatch):
+    from model import explainer as expl
+
+    cases = [
+        (0.14996, "APPROVED", "<15.00%"),
+        (0.15000, "REVIEW", "15.00%"),
+        (0.34996, "REVIEW", "<35.00%"),
+        (0.35000, "DECLINED", "35.00%"),
+    ]
+    for raw_prob, expected_decision, expected_display in cases:
+        monkeypatch.setattr(expl, "encode_applicant", lambda applicant: np.zeros((1, 1)))
+        monkeypatch.setattr(expl, "_predict_proba_best", lambda X, p=raw_prob: float(p))
+        scored = expl.score_applicant({})
+        assert scored["decision"] == expected_decision
+        assert scored["default_probability"] == float(raw_prob)
+        assert scored["default_probability"] == pytest.approx(raw_prob)
+        # Must not be truncated by round(..., 4) style packaging.
+        assert isinstance(scored["default_probability"], float)
+        display = expl.format_uncalibrated_risk_display(
+            scored["default_probability"], scored["decision"]
+        )
+        assert display == expected_display
+
+
+def test_readme_threshold_wording():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "15–35%" not in text
+    assert ">35%" not in text
+    assert "&gt;35%" not in text
+    assert "Approve: &lt;15%" in text
+    assert "Review: ≥15% and &lt;35%" in text
+    assert "Decline: ≥35%" in text
+    assert "Python-3.12.3" in text
+
+
+def test_app_uses_boundary_safe_display_formatter():
+    src = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert "format_uncalibrated_risk_display" in src
+    assert "prob_display" in src
+    assert "result_signature" in src
+    assert "result_applicant" in src
+    assert 'metadata.get("top_features"' in src
