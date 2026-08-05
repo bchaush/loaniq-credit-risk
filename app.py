@@ -1937,7 +1937,7 @@ with tab1:
                 for rank, name in enumerate(ranked_features, start=1)
             )
 
-            # ── FIX 2: Convert Claude's markdown to HTML before injecting.
+            # Convert narrative markdown-like sections to HTML before injecting.
             #    This prevents raw **bold** and \n from appearing in the UI.
             explanation_html = ""
             explanation_text = expl if expl else ""
@@ -2087,9 +2087,10 @@ with tab2:
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<small style='color:#6b7280;'>Files with "
-        "missing or misnamed columns will be rejected "
-        "with validation feedback.</small>",
+        "<small style='color:#6b7280;'>Missing required columns are rejected. "
+        "Missing optional model inputs may use training medians or unknown-category "
+        "handling. Malformed values, conflicting engineered fields, and reserved "
+        "result columns are rejected with validation feedback.</small>",
         unsafe_allow_html=True,
     )
 

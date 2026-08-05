@@ -30,7 +30,15 @@ NO_ACTIVE_TENURE_INCOME_TYPES = frozenset({"Unemployed", "Pensioner"})
 
 
 def employment_to_age_ratio(employed_years: float, age_years: float) -> float:
-    """Same formula as SQL: tenure_years / age_years (positive-year units)."""
+    """Application feature-contract ratio: employed_years / age_years.
+
+    Historical training SQL computed the analogous ratio from source day values
+    (DAYS_EMPLOYED / DAYS_BIRTH). The deployed app derives it from the
+    user-facing year fields (which may already be rounded). Those definitions
+    agree for the default applicant and covered parity fixtures; exact identity
+    for every theoretical raw record must not be assumed. Changing this serving
+    definition requires retraining and parity evaluation.
+    """
     age = float(age_years)
     if age <= 0:
         return float("nan")
@@ -42,10 +50,17 @@ def derive_employment_fields(
     employed_years: float | None,
     age_years: float,
 ) -> tuple[float, float, int]:
-    """Match training: no-active tenure → missing employed_years; is_unemployed from tenure.
+    """Derive tenure features for the current serving feature contract.
 
+    No-active tenure → missing employed_years; is_unemployed from tenure.
     Returns (employed_years_feat, employment_to_age_ratio, is_unemployed).
     is_unemployed is 1 iff transformed tenure is missing — not from income label alone.
+
+    The deployed application preserves the feature contract used by the current
+    serving artifacts. Historical training SQL computed employment-to-age from
+    source day values, while the application derives it from its supplied year
+    fields. The serving definition must not be changed without retraining and
+    parity evaluation.
     """
     no_active = (
         income_type in NO_ACTIVE_TENURE_INCOME_TYPES
@@ -143,6 +158,12 @@ def transform_applicant(applicant: dict, artifact: dict[str, Any]) -> np.ndarray
 
 
 def save_preprocessing(artifact: dict[str, Any], path: Path | str = PREPROCESSING_PATH) -> None:
+    """Persist preprocessing.pkl and an inspection-only preprocessing.json sidecar.
+
+    Runtime and verification load the pickle only. The JSON sidecar is for human
+    inspection and must be published with the rest of a serving bundle when
+    generated (never left unmanaged beside older primary artifacts).
+    """
     path = Path(path)
     joblib.dump(artifact, path)
     sidecar = {

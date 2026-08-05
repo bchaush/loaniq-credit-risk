@@ -1,10 +1,10 @@
 """Train LoanIQ XGBoost with train/val/test discipline and train-only preprocessing."""
+import argparse
 import os
 import sqlite3
 import sys
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.chdir(ROOT)
 
+from artifact_bundle import resolve_training_commit, write_serving_bundle  # noqa: E402
 from preprocess import (  # noqa: E402
     CAT_COLS,
     fit_preprocessing,
@@ -28,6 +29,14 @@ from preprocess import (  # noqa: E402
 
 DB_PATH = "database/loaniq.db"
 os.makedirs("model", exist_ok=True)
+
+_parser = argparse.ArgumentParser(description="Train LoanIQ XGBoost and write a serving bundle.")
+_parser.add_argument(
+    "--training-commit",
+    default=None,
+    help="Explicit training commit SHA for the artifact manifest (optional).",
+)
+_ARGS, _UNKNOWN = _parser.parse_known_args()
 
 # ── 1. Load features ──────────────────────────────────────────────
 print("Loading features from SQLite...")
@@ -123,8 +132,9 @@ print(importance.head(15).to_string())
 model._loaniq_best_iteration = best_iteration
 model._loaniq_n_trees_served = n_trees_served
 
-# ── 7. Persist complete serving bundle (pkl + preprocessing + native JSON + metadata + manifest)
-from artifact_bundle import write_serving_bundle  # noqa: E402
+# ── 7. Persist complete serving bundle (staged + rollback-protected)
+# encoders.pkl is intentionally not written: categorical maps live in preprocessing.pkl.
+provenance = resolve_training_commit(_ARGS.training_commit, repo_dir=ROOT)
 
 metadata = {
     "roc_auc": round(float(roc_auc), 4),
@@ -147,16 +157,19 @@ metadata = {
     "preprocessing_version": artifact["preprocessing_version"],
 }
 
-# Legacy encoder dump retained alongside the atomic serving bundle.
-joblib.dump(artifact["encoders"], "model/encoders.pkl")
-
 write_serving_bundle(
     model,
     artifact,
     metadata,
     "model",
+    training_commit=provenance["training_commit"],
+    git_dirty=provenance["git_dirty"],
 )
 
 print("\nOK Serving bundle written via model.artifact_bundle.write_serving_bundle")
-print("OK Encoders saved  →  model/encoders.pkl")
-print("OK Model / preprocessing / native booster / metadata / manifest updated together")
+print(
+    "OK Bundle files: loaniq_model.pkl, preprocessing.pkl, preprocessing.json "
+    "(inspection), loaniq_booster.json, metadata.json, artifact_manifest.json"
+)
+print(f"OK training_commit={provenance['training_commit']!r} git_dirty={provenance['git_dirty']!r}")
+print("Note: encoders.pkl is not updated by this workflow (maps are inside preprocessing.pkl).")
