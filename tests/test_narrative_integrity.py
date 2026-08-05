@@ -201,14 +201,103 @@ def test_claude_timeout_uses_fallback(monkeypatch):
     assert "probability of default" not in text.lower()
 
 
+def test_forbidden_terms_in_claude_payload_cannot_enter_summary_decision(monkeypatch):
+    from model import explainer as expl
+
+    # Claude returns forbidden prose in ignored fields plus valid fact IDs.
+    payload = {
+        "summary": "This cites a calibrated probability and probability of default.",
+        "strength_fact_ids": ["debt_service_income", "employment"],
+        "risk_fact_ids": [],
+        "decision": "Decline under internal risk tolerance.",
+        "decision_override": "APPROVED",
+        "percentage": "1.00%",
+    }
+
+    class _Resp:
+        content = [SimpleNamespace(text=json.dumps(payload))]
+
+    class _Ok:
+        def create(self, *args, **kwargs):
+            return _Resp()
+
+    monkeypatch.setattr(expl, "client", SimpleNamespace(messages=_Ok()))
+    applicant = live_default_applicant()
+    scored = score_applicant(applicant)
+    text = explain_decision(applicant, scored)
+    assert "probability of default" not in text.lower()
+    assert "calibrated probability" not in text.lower()
+    assert "internal risk tolerance" not in text.lower()
+    assert "APPROVED" not in text.split("Strengths:")[0]  # Summary stays DECLINED
+    assert "DECLINED" in text
+    assert "uncalibrated model risk estimate" in text.lower()
+    assert "Debt service / income 20.0%" in text
+
+
+def test_claude_wrong_decision_or_percentage_cannot_override_canonical(monkeypatch):
+    from model import explainer as expl
+    from model.explainer import build_canonical_decision_text, build_canonical_summary
+
+    payload = {
+        "strength_fact_ids": ["employment"],
+        "risk_fact_ids": [],
+        "decision": "APPROVED",
+        "summary": "Approve at 1.00% uncalibrated model risk estimate.",
+        "risk_tier": "Low Risk",
+        "default_probability": 0.01,
+    }
+
+    class _Resp:
+        content = [SimpleNamespace(text=json.dumps(payload))]
+
+    class _Ok:
+        def create(self, *args, **kwargs):
+            return _Resp()
+
+    monkeypatch.setattr(expl, "client", SimpleNamespace(messages=_Ok()))
+    applicant = live_default_applicant()
+    scored = score_applicant(applicant)
+    text = explain_decision(applicant, scored)
+    assert build_canonical_summary(scored) in text
+    assert build_canonical_decision_text(scored) in text
+    assert "1.00%" not in text
+    assert scored["decision"] == "DECLINED"
+    assert "DECLINED" in text
+    assert "High Risk" in text
+
+
+def test_claude_neutral_metric_cannot_enter_display(monkeypatch):
+    from model import explainer as expl
+
+    payload = {
+        "strength_fact_ids": ["credit_to_income"],  # neutral for default applicant
+        "risk_fact_ids": [],
+    }
+
+    class _Resp:
+        content = [SimpleNamespace(text=json.dumps(payload))]
+
+    class _Ok:
+        def create(self, *args, **kwargs):
+            return _Resp()
+
+    monkeypatch.setattr(expl, "client", SimpleNamespace(messages=_Ok()))
+    applicant = live_default_applicant()
+    scored = score_applicant(applicant)
+    text = explain_decision(applicant, scored)
+    # Fallback because neutral ID is not an approved strength.
+    assert text == render_deterministic_narrative(
+        scored, build_assessment_facts(applicant, scored)
+    )
+    assert "Credit-to-income 3.00x" not in text.split("Key Risks:")[0]
+
+
 def test_unknown_fact_ids_rejected(monkeypatch):
     from model import explainer as expl
 
     payload = {
-        "summary": "Summary with uncalibrated model risk estimate noted.",
         "strength_fact_ids": ["not_a_real_fact"],
         "risk_fact_ids": [],
-        "decision": "Decision cites the manual demonstration band.",
     }
 
     class _Resp:
@@ -225,33 +314,6 @@ def test_unknown_fact_ids_rejected(monkeypatch):
     assert text == render_deterministic_narrative(
         scored, build_assessment_facts(applicant, scored)
     )
-
-
-def test_forbidden_terms_trigger_fallback(monkeypatch):
-    from model import explainer as expl
-
-    payload = {
-        "summary": "This cites a calibrated probability and probability of default.",
-        "strength_fact_ids": ["debt_service_income"],
-        "risk_fact_ids": [],
-        "decision": "Decline under internal risk tolerance.",
-    }
-
-    class _Resp:
-        content = [SimpleNamespace(text=json.dumps(payload))]
-
-    class _Ok:
-        def create(self, *args, **kwargs):
-            return _Resp()
-
-    monkeypatch.setattr(expl, "client", SimpleNamespace(messages=_Ok()))
-    applicant = live_default_applicant()
-    scored = score_applicant(applicant)
-    text = explain_decision(applicant, scored)
-    assert "probability of default" not in text.lower()
-    assert "calibrated probability" not in text.lower()
-    assert "uncalibrated model risk estimate" in text.lower()
-
 
 def test_default_live_applicant_fact_profile_and_score():
     applicant = live_default_applicant()
@@ -299,18 +361,14 @@ def test_decision_boundaries_remain_correct():
 
 def test_valid_claude_json_uses_canonical_fact_text(monkeypatch):
     from model import explainer as expl
+    from model.explainer import build_canonical_decision_text, build_canonical_summary
 
     payload = {
-        "summary": (
-            "Disposition follows the manual demonstration band on the "
-            "uncalibrated model risk estimate."
-        ),
         "strength_fact_ids": ["debt_service_income", "employment"],
         "risk_fact_ids": [],
-        "decision": (
-            "Decline follows the manual demonstration band for the "
-            "uncalibrated model risk estimate."
-        ),
+        # Extra ignored fields must not affect Summary/Decision.
+        "summary": "IGNORE THIS SUMMARY",
+        "decision": "IGNORE THIS DECISION — APPROVED at 0%",
     }
 
     class _Resp:
@@ -327,3 +385,10 @@ def test_valid_claude_json_uses_canonical_fact_text(monkeypatch):
     assert "Debt service / income 20.0%" in text
     assert "Employment tenure of 5.0 years" in text
     assert "Credit-to-income 3.00x" not in text
+    assert build_canonical_summary(scored) in text
+    assert build_canonical_decision_text(scored) in text
+    assert "IGNORE THIS" not in text
+    assert scored["risk_score"] == 639
+    assert scored["decision"] == "DECLINED"
+    assert scored["risk_tier"] == "High Risk"
+    assert scored["default_probability"] == pytest.approx(0.3611, abs=5e-4)
