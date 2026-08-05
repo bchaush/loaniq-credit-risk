@@ -76,7 +76,12 @@ def test_sentinel_365243_in_sql_and_build():
     assert "DAYS_EMPLOYED = 365243" in sql or "365243" in sql
 
 
-def test_tenure_ratio_parity():
+def test_tenure_ratio_parity_for_commensurate_year_values():
+    """Year-field formula matches day-ratio when years == days/365.25 exactly.
+
+    This does not claim identity for every theoretical raw SQL record after
+    independent year rounding in the application feature contract.
+    """
     assert employment_to_age_ratio(5.0, 40.0) == pytest.approx(0.125)
     days_emp, days_birth = 5.0 * 365.25, 40.0 * 365.25
     sql_ratio = round((days_emp / 365.25) / (days_birth / 365.25), 4)

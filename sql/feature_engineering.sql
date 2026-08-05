@@ -27,7 +27,11 @@ SELECT
             ELSE DAYS_EMPLOYED / 365.25
         END
     , 1)                                                    AS employed_years,
-    -- tenure_years / age_years (identical to app inference formula)
+    -- tenure_years / age_years from source day columns (training SQL).
+    -- The Streamlit/batch app derives the same-named serving feature from
+    -- user-facing employed_years and age_years. Those year fields may already
+    -- be rounded; do not claim exact raw-record identity with this SQL form
+    -- without qualification. Changing the serving definition requires retrain.
     ROUND(
         CASE
             WHEN DAYS_EMPLOYED IS NULL OR DAYS_EMPLOYED = 365243 THEN NULL

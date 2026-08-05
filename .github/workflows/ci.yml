@@ -98,6 +98,10 @@ jobs:
               "calibrated default probability",
               "246,008",
               "246008",
+              "Claude connective prose",
+              "Claude-generated Summary",
+              "published atomically",
+              "identical to app inference formula",
           ]
           fake_imp = ["0.148", "0.104", "0.066", "0.050", "0.047", "0.042", "0.039"]
           for path in paths:

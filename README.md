@@ -18,7 +18,7 @@
 
 Most credit demos stop at a score. Stakeholders still need a readable rationale that cannot invent strengths, risks, or causal claims.
 
-LoanIQ shows one path: shared preprocessing → uncalibrated model risk estimate → manual demonstration band → deterministic fact engine → optional Claude connective prose that is validated before display.
+LoanIQ shows one path: shared preprocessing → uncalibrated model risk estimate → manual demonstration band → deterministic fact engine → optional Claude selection of approved strength/risk fact IDs, with all displayed narrative text rendered locally.
 
 ---
 
@@ -43,16 +43,14 @@ These are **not** validation-tuned cutoffs and **not** fitted probability calibr
 **Step 3 — Narrative:**
 - **Quick score** never calls Anthropic.
 - **Full assessment** scores first, then builds deterministic facts.
-- **Summary** and **Decision** text are always rendered locally from the scored
-  decision, risk tier, boundary-safe uncalibrated model risk estimate, and
-  manual demonstration band. Claude cannot supply or override those fields.
-- Claude may return only approved `strength_fact_ids` / `risk_fact_ids`.
-  Strengths / Key Risks bullets are assembled from **canonical local fact text**.
-- Neutral facts are never selectable. On API failure, malformed JSON, unknown
-  IDs, forbidden terminology, or empty responses, a **deterministic local
-  narrative** is used. Scoring is unchanged.
+- Claude may select only approved strength and risk fact IDs. All displayed Summary, Decision, score, percentage, threshold, and bullet text is rendered locally from deterministic application facts.
+- Neutral facts are never selectable. On API failure, malformed JSON, unknown IDs, forbidden terminology, or empty responses, a **deterministic local narrative** is used. Scoring is unchanged.
 
 Global driver ranks in the UI are **training-level metadata order**, not applicant-level SHAP and not individualized causal reasons.
+
+### Employment-to-age ratio (feature contract)
+
+The deployed application preserves the feature contract used by the current serving artifacts. Historical training SQL computed this ratio from source day values (`DAYS_EMPLOYED` / `DAYS_BIRTH`), while the interactive and batch application derives it from the supplied `employed_years` and `age_years` fields (which may already be rounded for the application feature contract). The two formulas agree for the default applicant and covered parity fixtures; exact identity for every theoretical raw record must not be claimed. Changing this serving feature definition would require retraining, held-out metric evaluation, golden prediction comparison, and artifact verification.
 
 ---
 
@@ -90,7 +88,7 @@ Neutral items such as credit-to-income **3.00x**, alternative composites **0.45 
 | --- | --- | --- |
 | Data | SQLite, Pandas, Home Credit `application_train.csv` | Single-table feature view |
 | Model | XGBoost native JSON booster + joblib preprocessing | Tabular inference with train-only medians / category maps |
-| Explainability | Deterministic fact engine + optional Anthropic Claude | Validated narrative with local fallback |
+| Explainability | Deterministic fact engine + optional Anthropic Claude fact-ID selection | Local Summary/Decision/bullets with local fallback |
 | App | Streamlit | Single / batch / model tabs |
 | Deploy | Streamlit Cloud | Demo hosting — set **Python 3.12** in Advanced settings |
 
@@ -102,6 +100,7 @@ Pinned direct dependencies are in `requirements.txt`. **CI is tested on Python 3
 
 - Inference uses `model/loaniq_booster.json` (native XGBoost), exported with **exact** prediction parity against `model/loaniq_model.pkl`.
 - `model/loaniq_model.pkl` is retained as the pickle reference; hashes and sizes live in `model/artifact_manifest.json` and are enforced by verification.
+- `model/preprocessing.pkl` is the canonical runtime preprocessing artifact. `model/preprocessing.json` is an inspection-only sidecar of medians / category maps.
 - `scripts/verify_artifact_compatibility.py` loads artifacts, fails on `InconsistentVersionWarning` / XGBoost pickle compatibility warnings, validates the manifest, and checks a **deterministic five-applicant golden set** covering:
   - **Decline** (default applicant: risk score **639**, uncalibrated estimate ≈ **36.11%**)
   - **Approve**
@@ -111,28 +110,56 @@ Pinned direct dependencies are in `requirements.txt`. **CI is tested on Python 3
 
 ### Batch scoring
 
-Batch and single-applicant paths share the same preprocessing and model. Equivalent results require equivalent model features. When source fields are present, engineered ratios/flags are validated against canonical SQL-aligned formulas. Absent optional features use training medians or unknown-category codes, so incomplete rows may differ from a fully populated single-applicant profile. Exported batch columns use **uncalibrated model risk estimate** (raw + boundary-safe display); internal scoring keys are not part of the user-facing export.
+Batch and single-applicant paths share the same preprocessing and model. Equivalent results require equivalent model features. When source fields are present, engineered ratios/flags are validated against canonical SQL-aligned formulas.
 
-Uploads are rejected when they contain:
+- **Missing required columns** are rejected.
+- **Missing optional model inputs** may use documented training medians or unknown-category handling; incomplete rows may differ from a fully populated single-applicant profile.
+- **Malformed values**, **conflicting engineered fields**, and **reserved result columns** are rejected.
+
+Exported batch columns use **uncalibrated model risk estimate** (raw + boundary-safe display); internal scoring keys are not part of the user-facing export.
+
+Uploads are also rejected when they contain:
 - invalid binary flags (must be exactly 0 or 1)
 - fractional or negative count fields (`CNT_CHILDREN`, `CNT_FAM_MEMBERS`, `credit_inquiries_year`)
-- conflicting engineered values vs SQL-aligned derivation
 - reserved scoring-output columns (`decision`, `risk_score`, `risk_tier`, `uncalibrated_model_risk_estimate`, `uncalibrated_model_risk_estimate_display`, `default_probability`), matched case-insensitively after trimming whitespace
 
 Do **not** enter real personal information in the demo.
 
 ### Training a future serving bundle
 
-`model/train.py` writes a complete serving bundle through
-`model.artifact_bundle.write_serving_bundle` after successful training and
-held-out evaluation: `loaniq_model.pkl`, `preprocessing.pkl`,
-`loaniq_booster.json` (via XGBoost `save_model`), `metadata.json`, and
-`artifact_manifest.json`. Those five files are staged together and published
-atomically so a new pickle/preprocessor cannot land beside a stale native
-booster. Verify with `python scripts/verify_artifact_compatibility.py`.
+Command (after database features are available):
 
-This repository revision does **not** retrain the committed production model;
-the live artifact hashes remain those recorded in `model/artifact_manifest.json`.
+```bash
+python model/train.py
+# optional provenance:
+python model/train.py --training-commit "$(git rev-parse HEAD)"
+# or: LOANIQ_TRAINING_COMMIT=<sha> python model/train.py
+```
+
+`model/train.py` calls `model.artifact_bundle.write_serving_bundle` after successful training and held-out evaluation. Supported published files:
+
+| File | Role |
+| --- | --- |
+| `loaniq_booster.json` | **Runtime inference** (native XGBoost) |
+| `preprocessing.pkl` | **Runtime** medians / category maps |
+| `loaniq_model.pkl` | Pickle **reference** (parity / compatibility) |
+| `metadata.json` | Metrics, feature order, demonstration bands |
+| `artifact_manifest.json` | Hashes, sizes, runtime versions, training commit |
+| `preprocessing.json` | **Inspection-only** sidecar (not loaded at runtime) |
+
+`encoders.pkl` is a **legacy** committed artifact superseded by maps inside `preprocessing.pkl`. The training workflow does **not** update it.
+
+Publication model: artifacts are written to a staging directory, hashed and validated, then published with rollback protection. Each file replacement uses an atomic filesystem operation (`os.replace`); the complete multi-file bundle is **not** claimed to be one indivisible filesystem transaction.
+
+Training commit provenance (recorded in newly generated manifests only):
+1. `--training-commit` CLI argument, else
+2. `LOANIQ_TRAINING_COMMIT` environment variable, else
+3. `git rev-parse HEAD` when available, else
+4. `null` (training does not fail solely for missing Git metadata). Dirty working-tree status is recorded when safely detectable.
+
+A changed feature definition — including employment-to-age derivation — requires retraining, held-out metric evaluation, golden prediction comparison, and artifact verification.
+
+This maintenance patch does **not** retrain or modify the currently deployed model; live artifact hashes remain those recorded in `model/artifact_manifest.json`.
 
 ---
 
