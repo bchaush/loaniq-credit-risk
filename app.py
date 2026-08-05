@@ -1557,7 +1557,7 @@ with tab1:
                 age_years = st.number_input(
                     "Age (years)",
                     18, 75, 35,
-                    help="Applicant age in years. Used for lifecycle risk calibration and policy checks.",
+                    help="Applicant age in years. Used for lifecycle risk context and policy checks.",
                 )
                 cnt_children = st.number_input(
                     "Dependent children",
@@ -2065,7 +2065,7 @@ with tab3:
         "for retail credit risk models, providing moderate "
         "discriminatory power between default and "
         "non-default outcomes. Decision thresholds are "
-        "manually selected demonstration policy bands "
+        "manually selected demonstration bands "
         "(Approve / Review / Decline)."
         "</div>",
         unsafe_allow_html=True,

@@ -64,7 +64,7 @@ def score_applicant(applicant: dict) -> dict:
     X = encode_applicant(applicant)
     prob = _predict_proba_best(X)
 
-    # Demonstration policy bands (manually selected; not validation-tuned)
+    # Demonstration bands (manually selected; not validation-tuned)
     if prob < 0.15:
         decision = "APPROVED"
         risk_tier = "Low Risk"

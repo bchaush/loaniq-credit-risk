@@ -57,7 +57,7 @@
   "decision_thresholds": {
     "approved_lt": 0.15,
     "review_lt": 0.35,
-    "note": "Manually selected demonstration policy bands (not validation-tuned)."
+    "note": "Manually selected demonstration bands (not validation-tuned)."
   },
   "early_stopping_eval_set": "validation",
   "best_iteration": 288,
