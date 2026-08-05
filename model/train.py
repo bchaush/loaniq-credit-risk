@@ -1,5 +1,4 @@
 """Train LoanIQ XGBoost with train/val/test discipline and train-only preprocessing."""
-import json
 import os
 import sqlite3
 import sys
@@ -24,7 +23,6 @@ os.chdir(ROOT)
 from preprocess import (  # noqa: E402
     CAT_COLS,
     fit_preprocessing,
-    save_preprocessing,
     transform_frame,
 )
 
@@ -125,10 +123,8 @@ print(importance.head(15).to_string())
 model._loaniq_best_iteration = best_iteration
 model._loaniq_n_trees_served = n_trees_served
 
-# ── 7. Persist artifacts ──────────────────────────────────────────
-joblib.dump(model, "model/loaniq_model.pkl")
-joblib.dump(artifact["encoders"], "model/encoders.pkl")
-save_preprocessing(artifact, "model/preprocessing.pkl")
+# ── 7. Persist complete serving bundle (pkl + preprocessing + native JSON + metadata + manifest)
+from artifact_bundle import write_serving_bundle  # noqa: E402
 
 metadata = {
     "roc_auc": round(float(roc_auc), 4),
@@ -151,10 +147,16 @@ metadata = {
     "preprocessing_version": artifact["preprocessing_version"],
 }
 
-with open("model/metadata.json", "w", encoding="utf-8") as f:
-    json.dump(metadata, f, indent=2)
+# Legacy encoder dump retained alongside the atomic serving bundle.
+joblib.dump(artifact["encoders"], "model/encoders.pkl")
 
-print("\nOK Model saved  →  model/loaniq_model.pkl")
+write_serving_bundle(
+    model,
+    artifact,
+    metadata,
+    "model",
+)
+
+print("\nOK Serving bundle written via model.artifact_bundle.write_serving_bundle")
 print("OK Encoders saved  →  model/encoders.pkl")
-print("OK Preprocessing saved  →  model/preprocessing.pkl")
-print("OK Metadata saved  →  model/metadata.json")
+print("OK Model / preprocessing / native booster / metadata / manifest updated together")

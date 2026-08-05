@@ -7,8 +7,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from model.feature_engineering import (
+from model.domain_validation import (
+    BINARY_MODEL_FIELDS,
+    NONNEGATIVE_INTEGER_FIELDS,
     FeatureEngineeringError,
+    validate_binary_value,
+    validate_nonnegative_integer,
+    validate_region_rating_client,
+)
+from model.feature_engineering import (
     derive_ext_score_sum,
     derive_financial_features,
     derive_high_inquiry_flag,
@@ -85,7 +92,37 @@ FINANCIAL_SOURCE_FIELDS = (
     "AMT_GOODS_PRICE",
 )
 
+# Reserved result / internal columns — rejected case-insensitively after strip.
+BATCH_OUTPUT_COLUMNS = frozenset(
+    {
+        "uncalibrated_model_risk_estimate",
+        "uncalibrated_model_risk_estimate_display",
+        "risk_score",
+        "decision",
+        "risk_tier",
+    }
+)
+RESERVED_UPLOAD_COLUMNS = BATCH_OUTPUT_COLUMNS | frozenset({"default_probability"})
+
 MAX_ERRORS = 10
+
+
+def _normalize_column_name(name: Any) -> str:
+    return str(name).strip().lower()
+
+
+def find_reserved_upload_columns(columns: Any) -> list[str]:
+    """Return original column names that conflict with reserved result fields.
+
+    Matching is case-insensitive after stripping surrounding whitespace.
+    """
+    reserved_normalized = {_normalize_column_name(c) for c in RESERVED_UPLOAD_COLUMNS}
+    conflicts: list[str] = []
+    for col in columns:
+        if _normalize_column_name(col) in reserved_normalized:
+            conflicts.append(str(col))
+    return conflicts
+
 
 
 @dataclass
@@ -156,6 +193,19 @@ def validate_and_prepare_batch(
             total_error_count=1,
         )
 
+    reserved_conflicts = find_reserved_upload_columns(working.columns)
+    if reserved_conflicts:
+        return BatchValidationResult(
+            ok=False,
+            errors=[
+                "Upload contains reserved scoring-output column(s): "
+                + ", ".join(reserved_conflicts)
+                + ". Remove these columns before upload "
+                "(matching is case-insensitive after trimming whitespace)."
+            ],
+            total_error_count=1,
+        )
+
     missing_required = [c for c in REQUIRED_COLS if c not in working.columns]
     if missing_required:
         return BatchValidationResult(
@@ -183,6 +233,10 @@ def validate_and_prepare_batch(
     }
     candidate_numeric = [c for c in candidate_numeric if c not in categorical]
 
+    # Object dtype avoids pandas string-extension refusing int/float repairs.
+    for col in candidate_numeric:
+        working[col] = working[col].astype(object)
+
     for col in candidate_numeric:
         for idx, raw in working[col].items():
             blank = isinstance(raw, str) and raw.strip() == ""
@@ -191,6 +245,30 @@ def validate_and_prepare_batch(
             if col in FINANCIAL_SOURCE_FIELDS and missing:
                 add_error(
                     f"Row {_csv_row(idx)} field {col}: non-finite value {raw!r}."
+                )
+                working.at[idx, col] = np.nan
+                invalid_cells.add((idx, col))
+                continue
+            if col in BINARY_MODEL_FIELDS and missing:
+                add_error(
+                    f"Row {_csv_row(idx)} field {col}: must be binary 0 or 1; "
+                    f"received {raw!r} (expected domain: {{0, 1}})"
+                )
+                working.at[idx, col] = np.nan
+                invalid_cells.add((idx, col))
+                continue
+            if col in NONNEGATIVE_INTEGER_FIELDS and missing:
+                add_error(
+                    f"Row {_csv_row(idx)} field {col}: must be a nonnegative integer; "
+                    f"received {raw!r} (expected domain: nonnegative integer)"
+                )
+                working.at[idx, col] = np.nan
+                invalid_cells.add((idx, col))
+                continue
+            if col == "REGION_RATING_CLIENT" and missing:
+                add_error(
+                    f"Row {_csv_row(idx)} field {col}: must be one of [1, 2, 3]; "
+                    f"received {raw!r}"
                 )
                 working.at[idx, col] = np.nan
                 invalid_cells.add((idx, col))
@@ -219,6 +297,24 @@ def validate_and_prepare_batch(
                 working.at[idx, col] = np.nan
                 invalid_cells.add((idx, col))
                 continue
+
+            # Strict domain checks — never accept fractional binaries/counts via truncation.
+            try:
+                if col in BINARY_MODEL_FIELDS:
+                    working.at[idx, col] = validate_binary_value(raw, col)
+                    continue
+                if col in NONNEGATIVE_INTEGER_FIELDS:
+                    working.at[idx, col] = validate_nonnegative_integer(raw, col)
+                    continue
+                if col == "REGION_RATING_CLIENT":
+                    working.at[idx, col] = validate_region_rating_client(raw, col)
+                    continue
+            except FeatureEngineeringError as exc:
+                add_error(f"Row {_csv_row(idx)} field {col}: {exc}")
+                working.at[idx, col] = np.nan
+                invalid_cells.add((idx, col))
+                continue
+
             working.at[idx, col] = number
 
     # Required fields must be finite after conversion (skip cells already flagged).
@@ -314,7 +410,7 @@ def validate_and_prepare_batch(
                             f"does not match canonical {expected_sum}."
                         )
 
-        # Deterministic flags — reject conflicts; add when absent
+        # Deterministic flags — reject conflicts; normalize valid values to int 0/1
         try:
             if (
                 not _is_missing(ext2)
@@ -324,12 +420,21 @@ def validate_and_prepare_batch(
                 if "low_ext_score_2" in working.columns and not _is_missing(
                     row.get("low_ext_score_2")
                 ):
-                    if int(float(row.get("low_ext_score_2"))) != expected_flag:
-                        add_error(
-                            f"Row {row_no} field low_ext_score_2: supplied "
-                            f"{row.get('low_ext_score_2')} conflicts with "
-                            f"EXT_SOURCE_2-derived {expected_flag}."
+                    try:
+                        supplied_flag = validate_binary_value(
+                            row.get("low_ext_score_2"), "low_ext_score_2"
                         )
+                    except FeatureEngineeringError as exc:
+                        add_error(f"Row {row_no} field low_ext_score_2: {exc}")
+                        invalid_cells.add((idx, "low_ext_score_2"))
+                    else:
+                        if supplied_flag != expected_flag:
+                            add_error(
+                                f"Row {row_no} field low_ext_score_2: supplied "
+                                f"{row.get('low_ext_score_2')} conflicts with "
+                                f"EXT_SOURCE_2-derived {expected_flag}."
+                            )
+                        working.at[idx, "low_ext_score_2"] = expected_flag
                 else:
                     working.at[idx, "low_ext_score_2"] = expected_flag
 
@@ -341,12 +446,21 @@ def validate_and_prepare_batch(
                 if "low_ext_score_3" in working.columns and not _is_missing(
                     row.get("low_ext_score_3")
                 ):
-                    if int(float(row.get("low_ext_score_3"))) != expected_flag:
-                        add_error(
-                            f"Row {row_no} field low_ext_score_3: supplied "
-                            f"{row.get('low_ext_score_3')} conflicts with "
-                            f"EXT_SOURCE_3-derived {expected_flag}."
+                    try:
+                        supplied_flag = validate_binary_value(
+                            row.get("low_ext_score_3"), "low_ext_score_3"
                         )
+                    except FeatureEngineeringError as exc:
+                        add_error(f"Row {row_no} field low_ext_score_3: {exc}")
+                        invalid_cells.add((idx, "low_ext_score_3"))
+                    else:
+                        if supplied_flag != expected_flag:
+                            add_error(
+                                f"Row {row_no} field low_ext_score_3: supplied "
+                                f"{row.get('low_ext_score_3')} conflicts with "
+                                f"EXT_SOURCE_3-derived {expected_flag}."
+                            )
+                        working.at[idx, "low_ext_score_3"] = expected_flag
                 else:
                     working.at[idx, "low_ext_score_3"] = expected_flag
 
@@ -359,12 +473,21 @@ def validate_and_prepare_batch(
                 if "many_children" in working.columns and not _is_missing(
                     row.get("many_children")
                 ):
-                    if int(float(row.get("many_children"))) != expected_flag:
-                        add_error(
-                            f"Row {row_no} field many_children: supplied "
-                            f"{row.get('many_children')} conflicts with "
-                            f"CNT_CHILDREN-derived {expected_flag}."
+                    try:
+                        supplied_flag = validate_binary_value(
+                            row.get("many_children"), "many_children"
                         )
+                    except FeatureEngineeringError as exc:
+                        add_error(f"Row {row_no} field many_children: {exc}")
+                        invalid_cells.add((idx, "many_children"))
+                    else:
+                        if supplied_flag != expected_flag:
+                            add_error(
+                                f"Row {row_no} field many_children: supplied "
+                                f"{row.get('many_children')} conflicts with "
+                                f"CNT_CHILDREN-derived {expected_flag}."
+                            )
+                        working.at[idx, "many_children"] = expected_flag
                 else:
                     working.at[idx, "many_children"] = expected_flag
 
@@ -379,12 +502,21 @@ def validate_and_prepare_batch(
                 if "high_inquiry_flag" in working.columns and not _is_missing(
                     row.get("high_inquiry_flag")
                 ):
-                    if int(float(row.get("high_inquiry_flag"))) != expected_flag:
-                        add_error(
-                            f"Row {row_no} field high_inquiry_flag: supplied "
-                            f"{row.get('high_inquiry_flag')} conflicts with "
-                            f"credit_inquiries_year-derived {expected_flag}."
+                    try:
+                        supplied_flag = validate_binary_value(
+                            row.get("high_inquiry_flag"), "high_inquiry_flag"
                         )
+                    except FeatureEngineeringError as exc:
+                        add_error(f"Row {row_no} field high_inquiry_flag: {exc}")
+                        invalid_cells.add((idx, "high_inquiry_flag"))
+                    else:
+                        if supplied_flag != expected_flag:
+                            add_error(
+                                f"Row {row_no} field high_inquiry_flag: supplied "
+                                f"{row.get('high_inquiry_flag')} conflicts with "
+                                f"credit_inquiries_year-derived {expected_flag}."
+                            )
+                        working.at[idx, "high_inquiry_flag"] = expected_flag
                 else:
                     working.at[idx, "high_inquiry_flag"] = expected_flag
         except FeatureEngineeringError as exc:
@@ -421,11 +553,20 @@ def validate_and_prepare_batch(
                     continue
                 supplied = row.get(field_name)
                 if field_name == "is_unemployed":
-                    if int(float(supplied)) != int(expected):
+                    try:
+                        supplied_flag = validate_binary_value(
+                            supplied, "is_unemployed"
+                        )
+                    except FeatureEngineeringError as exc:
+                        add_error(f"Row {row_no} field is_unemployed: {exc}")
+                        invalid_cells.add((idx, "is_unemployed"))
+                        continue
+                    if supplied_flag != int(expected):
                         add_error(
                             f"Row {row_no} field is_unemployed: supplied {supplied} "
                             f"conflicts with derived {expected}."
                         )
+                    working.at[idx, "is_unemployed"] = int(expected)
                 else:
                     if (pd.isna(supplied) and pd.isna(expected)) or (
                         np.isfinite(float(supplied))

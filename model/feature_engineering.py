@@ -5,11 +5,26 @@ import math
 import sqlite3
 from typing import Any, Literal
 
+from model.domain_validation import (
+    FeatureEngineeringError,
+    validate_nonnegative_integer,
+)
+
 Constraint = Literal["finite", "positive", "nonnegative"]
 
-
-class FeatureEngineeringError(ValueError):
-    """Invalid inputs for SQL-aligned feature derivation."""
+# Back-compat re-export
+__all__ = [
+    "FeatureEngineeringError",
+    "sqlite_round",
+    "require_finite_number",
+    "derive_financial_features",
+    "derive_ext_score_sum",
+    "derive_low_ext_score_2",
+    "derive_low_ext_score_3",
+    "derive_many_children",
+    "derive_high_inquiry_flag",
+    "build_batch_result_row",
+]
 
 
 _SQLITE = sqlite3.connect(":memory:", check_same_thread=False)
@@ -125,16 +140,15 @@ def derive_low_ext_score_3(ext_source_3: float) -> int:
 
 
 def derive_many_children(cnt_children: float | int) -> int:
-    value = require_finite_number("CNT_CHILDREN", cnt_children, constraint="finite")
-    assert value is not None
-    return 1 if int(value) > 2 else 0
+    """SQL: CASE WHEN CNT_CHILDREN > 2 THEN 1 ELSE 0 END (integer count, no truncation)."""
+    value = validate_nonnegative_integer(cnt_children, "CNT_CHILDREN")
+    return 1 if value > 2 else 0
 
 
 def derive_high_inquiry_flag(credit_inquiries_year: float | int) -> int:
-    value = require_finite_number(
-        "credit_inquiries_year", credit_inquiries_year, constraint="finite"
+    value = validate_nonnegative_integer(
+        credit_inquiries_year, "credit_inquiries_year"
     )
-    assert value is not None
     return 1 if value > 3 else 0
 
 

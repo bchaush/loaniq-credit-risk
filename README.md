@@ -42,9 +42,15 @@ These are **not** validation-tuned cutoffs and **not** fitted probability calibr
 
 **Step 3 — Narrative:**
 - **Quick score** never calls Anthropic.
-- **Full assessment** scores first, then builds deterministic facts. Claude receives only approved strength/risk fact IDs plus decision context — not neutral metrics.
-- Claude JSON is parsed and validated; Strengths / Key Risks are assembled from **canonical local fact text**.
-- On API failure, malformed JSON, unknown IDs, forbidden terminology, or empty responses, a **deterministic local narrative** is used. Scoring is unchanged.
+- **Full assessment** scores first, then builds deterministic facts.
+- **Summary** and **Decision** text are always rendered locally from the scored
+  decision, risk tier, boundary-safe uncalibrated model risk estimate, and
+  manual demonstration band. Claude cannot supply or override those fields.
+- Claude may return only approved `strength_fact_ids` / `risk_fact_ids`.
+  Strengths / Key Risks bullets are assembled from **canonical local fact text**.
+- Neutral facts are never selectable. On API failure, malformed JSON, unknown
+  IDs, forbidden terminology, or empty responses, a **deterministic local
+  narrative** is used. Scoring is unchanged.
 
 Global driver ranks in the UI are **training-level metadata order**, not applicant-level SHAP and not individualized causal reasons.
 
@@ -68,8 +74,10 @@ Key Risks:
 
 Decision:
 The DECLINED outcome follows the manual demonstration band applied to
-the uncalibrated model risk estimate (36.11%). Observed profile indicators
-listed above are not individualized model-attribution claims.
+the uncalibrated model risk estimate (36.11%; High Risk). Threshold band:
+Approve: <15%; Review: ≥15% and <35%; Decline: ≥35% (manual demonstration
+band). Observed profile indicators listed above are not individualized
+model-attribution claims.
 ```
 
 Neutral items such as credit-to-income **3.00x**, alternative composites **0.45 / 0.50**, and collateral coverage ratio **94.4%** are omitted from Strengths and Key Risks.
@@ -105,7 +113,26 @@ Pinned direct dependencies are in `requirements.txt`. **CI is tested on Python 3
 
 Batch and single-applicant paths share the same preprocessing and model. Equivalent results require equivalent model features. When source fields are present, engineered ratios/flags are validated against canonical SQL-aligned formulas. Absent optional features use training medians or unknown-category codes, so incomplete rows may differ from a fully populated single-applicant profile. Exported batch columns use **uncalibrated model risk estimate** (raw + boundary-safe display); internal scoring keys are not part of the user-facing export.
 
+Uploads are rejected when they contain:
+- invalid binary flags (must be exactly 0 or 1)
+- fractional or negative count fields (`CNT_CHILDREN`, `CNT_FAM_MEMBERS`, `credit_inquiries_year`)
+- conflicting engineered values vs SQL-aligned derivation
+- reserved scoring-output columns (`decision`, `risk_score`, `risk_tier`, `uncalibrated_model_risk_estimate`, `uncalibrated_model_risk_estimate_display`, `default_probability`), matched case-insensitively after trimming whitespace
+
 Do **not** enter real personal information in the demo.
+
+### Training a future serving bundle
+
+`model/train.py` writes a complete serving bundle through
+`model.artifact_bundle.write_serving_bundle` after successful training and
+held-out evaluation: `loaniq_model.pkl`, `preprocessing.pkl`,
+`loaniq_booster.json` (via XGBoost `save_model`), `metadata.json`, and
+`artifact_manifest.json`. Those five files are staged together and published
+atomically so a new pickle/preprocessor cannot land beside a stale native
+booster. Verify with `python scripts/verify_artifact_compatibility.py`.
+
+This repository revision does **not** retrain the committed production model;
+the live artifact hashes remain those recorded in `model/artifact_manifest.json`.
 
 ---
 

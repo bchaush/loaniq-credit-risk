@@ -372,16 +372,40 @@ def build_assessment_facts(applicant: dict, score_result: dict) -> dict[str, lis
     }
 
 
-def render_deterministic_narrative(
-    score_result: dict,
-    facts: dict[str, list[dict]],
-) -> str:
-    """Fully local rationale assembled from canonical fact text."""
+def build_canonical_summary(score_result: dict) -> str:
+    """Deterministic Summary body from local score fields only (no LLM text)."""
     decision = score_result["decision"]
     tier = score_result["risk_tier"]
     prob_display = format_uncalibrated_risk_display(
         float(score_result["default_probability"]), decision
     )
+    return (
+        f"The applicant receives a {decision} disposition ({tier}) under the "
+        f"manual demonstration band. The uncalibrated model risk estimate is "
+        f"{prob_display}."
+    )
+
+
+def build_canonical_decision_text(score_result: dict) -> str:
+    """Deterministic Decision body from local score fields only (no LLM text)."""
+    decision = score_result["decision"]
+    tier = score_result["risk_tier"]
+    prob_display = format_uncalibrated_risk_display(
+        float(score_result["default_probability"]), decision
+    )
+    return (
+        f"The {decision} outcome follows the manual demonstration band applied to "
+        f"the uncalibrated model risk estimate ({prob_display}; {tier}). "
+        f"Threshold band: {POLICY_BAND_TEXT}. Observed profile indicators listed "
+        f"above are not individualized model-attribution claims."
+    )
+
+
+def render_deterministic_narrative(
+    score_result: dict,
+    facts: dict[str, list[dict]],
+) -> str:
+    """Fully local rationale assembled from canonical fact text."""
     strengths = facts["strengths"]
     risks = facts["risks"]
 
@@ -396,23 +420,11 @@ def render_deterministic_narrative(
         else "- None identified."
     )
 
-    summary = (
-        f"Summary:\n"
-        f"The applicant receives a {decision} disposition ({tier}) under the "
-        f"manual demonstration band. The uncalibrated model risk estimate is "
-        f"{prob_display}."
-    )
-    decision_block = (
-        f"Decision:\n"
-        f"The {decision} outcome follows the manual demonstration band applied to "
-        f"the uncalibrated model risk estimate ({prob_display}). Observed profile "
-        f"indicators listed above are not individualized model-attribution claims."
-    )
     return (
-        f"{summary}\n\n"
+        f"Summary:\n{build_canonical_summary(score_result)}\n\n"
         f"Strengths:\n{strength_lines}\n\n"
         f"Key Risks:\n{risk_lines}\n\n"
-        f"{decision_block}"
+        f"Decision:\n{build_canonical_decision_text(score_result)}"
     )
 
 
@@ -421,9 +433,8 @@ def _assemble_from_fact_ids(
     facts: dict[str, list[dict]],
     strength_ids: list[str],
     risk_ids: list[str],
-    summary: str,
-    decision_text: str,
 ) -> str:
+    """Assemble narrative using local Summary/Decision + canonical fact bullets."""
     strength_map = {f["id"]: f for f in facts["strengths"]}
     risk_map = {f["id"]: f for f in facts["risks"]}
     strength_lines = (
@@ -437,10 +448,10 @@ def _assemble_from_fact_ids(
         else "- None identified."
     )
     return (
-        f"Summary:\n{summary.strip()}\n\n"
+        f"Summary:\n{build_canonical_summary(score_result)}\n\n"
         f"Strengths:\n{strength_lines}\n\n"
         f"Key Risks:\n{risk_lines}\n\n"
-        f"Decision:\n{decision_text.strip()}"
+        f"Decision:\n{build_canonical_decision_text(score_result)}"
     )
 
 
@@ -465,7 +476,11 @@ def _parse_claude_json(raw: str) -> dict | None:
 
 
 def explain_decision(applicant: dict, score_result: dict) -> str:
-    """Fact-bounded narrative; falls back to deterministic local text."""
+    """Fact-bounded narrative; Summary/Decision are always local/canonical.
+
+    Claude may select only approved strength/risk fact IDs. It cannot supply or
+    override decision, tier, score, percentage, thresholds, Summary, or Decision.
+    """
     facts = build_assessment_facts(applicant, score_result)
     fallback = render_deterministic_narrative(score_result, facts)
 
@@ -476,38 +491,23 @@ def explain_decision(applicant: dict, score_result: dict) -> str:
     if client is None:
         return fallback
 
-    prob_display = format_uncalibrated_risk_display(
-        float(score_result["default_probability"]), score_result["decision"]
-    )
     strength_payload = [
         {"id": f["id"], "text": f["text"]} for f in facts["strengths"]
     ]
     risk_payload = [{"id": f["id"], "text": f["text"]} for f in facts["risks"]]
 
-    prompt = f"""You are documenting an internal LoanIQ research prototype credit disposition.
-Return ONLY valid JSON with keys:
-  summary (string),
+    prompt = f"""You are assisting an internal LoanIQ research prototype.
+Return ONLY valid JSON with exactly these keys:
   strength_fact_ids (array of strings),
-  risk_fact_ids (array of strings),
-  decision (string)
+  risk_fact_ids (array of strings)
 
 Rules:
-- Use only the provided approved fact IDs.
+- Select only from the provided approved fact IDs.
 - Do not invent fact IDs.
-- Do not mention neutral metrics.
-- Do not claim calibrated PD language, validated policy cutoffs, adverse-action
-  reason codes, LTV terminology, or individualized model-driver causation.
-- Refer to the score as an uncalibrated model risk estimate.
-- Refer to thresholds as a manual demonstration band.
-- Observed profile indicators are not SHAP attributions.
-- Summary and decision may be brief connective prose only.
-- Strength/risk bullets will be assembled locally from canonical text.
+- Do not select neutral metrics.
+- Do not return decision, risk tier, risk score, percentage, Summary, or Decision text.
+- Strength/risk bullet text, Summary, and Decision are rendered locally.
 
-Decision: {score_result['decision']}
-Risk tier: {score_result['risk_tier']}
-Uncalibrated model risk estimate: {prob_display}
-Risk score: {score_result['risk_score']} / 1000
-Manual demonstration band: {POLICY_BAND_TEXT}
 Approved strength facts: {json.dumps(strength_payload)}
 Approved risk facts: {json.dumps(risk_payload)}
 """
@@ -515,7 +515,7 @@ Approved risk facts: {json.dumps(risk_payload)}
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=500,
+            max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = message.content[0].text
@@ -529,13 +529,9 @@ Approved risk facts: {json.dumps(risk_payload)}
     if parsed is None:
         return fallback
 
-    summary = parsed.get("summary")
-    decision_text = parsed.get("decision")
     strength_ids = parsed.get("strength_fact_ids") or []
     risk_ids = parsed.get("risk_fact_ids") or []
 
-    if not isinstance(summary, str) or not isinstance(decision_text, str):
-        return fallback
     if not isinstance(strength_ids, list) or not isinstance(risk_ids, list):
         return fallback
     if not all(isinstance(x, str) for x in strength_ids + risk_ids):
@@ -549,15 +545,10 @@ Approved risk facts: {json.dumps(risk_payload)}
         return fallback
 
     assembled = _assemble_from_fact_ids(
-        score_result, facts, strength_ids, risk_ids, summary, decision_text
+        score_result, facts, strength_ids, risk_ids
     )
     if _contains_forbidden_terminology(assembled):
         return fallback
-    if "uncalibrated model risk estimate" not in assembled.lower():
-        # Require canonical terminology in Summary/Decision connective prose path;
-        # if Claude omitted it, use deterministic narrative.
-        if "uncalibrated model risk estimate" not in (summary + decision_text).lower():
-            return fallback
     return assembled
 
 
