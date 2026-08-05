@@ -260,10 +260,10 @@ def test_no_stale_user_facing_phrases():
 
 def test_artifact_paths_are_root_dir_relative():
     src = (ROOT / "model" / "explainer.py").read_text(encoding="utf-8")
-    assert 'ROOT_DIR / "model" / "loaniq_model.pkl"' in src
+    assert 'ROOT_DIR / "model" / "loaniq_booster.json"' in src
     assert 'ROOT_DIR / "model" / "preprocessing.pkl"' in src
     assert 'ROOT_DIR / "model" / "metadata.json"' in src
-    assert "joblib.load(" in src and "ROOT_DIR" in src
+    assert "ROOT_DIR" in src
 
 
 def test_anthropic_failure_does_not_block_scoring(monkeypatch):
@@ -320,11 +320,14 @@ def test_anthropic_failure_does_not_block_scoring(monkeypatch):
     assert scored["decision"] in {"APPROVED", "REVIEW", "DECLINED"}
 
     explanation = expl.explain_decision(applicant, scored)
-    assert "AI explanation unavailable" in explanation
+    assert "uncalibrated model risk estimate" in explanation.lower()
+    assert "manual demonstration band" in explanation.lower()
+    assert "probability of default" not in explanation.lower()
 
     full = expl.full_assessment(applicant)
     assert full["decision"] == scored["decision"]
-    assert "AI explanation unavailable" in full["explanation"]
+    assert full["default_probability"] == scored["default_probability"]
+    assert "uncalibrated model risk estimate" in full["explanation"].lower()
 
 
 def test_metadata_driver_order_used_in_app():
@@ -391,9 +394,9 @@ def test_readme_threshold_wording():
     assert "15–35%" not in text
     assert ">35%" not in text
     assert "&gt;35%" not in text
-    assert "Approve: &lt;15%" in text
-    assert "Review: ≥15% and &lt;35%" in text
-    assert "Decline: ≥35%" in text
+    assert "- **Approve:** &lt;15%" in text
+    assert "- **Review:** ≥15% and &lt;35%" in text
+    assert "- **Decline:** ≥35%" in text
     assert "Python-3.12.3" in text
 
 
