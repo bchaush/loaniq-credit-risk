@@ -10,7 +10,7 @@
 
 ---
 
-**[▶ Launch live demo](https://loaniq-credit-risk-fvx6dhozuvkixakbyaqfus.streamlit.app)**
+**[▶ Launch live demo]([https://loaniq-credit-risk-fvx6dhozuvkixakbyaqfus.streamlit.app](https://share.streamlit.io/))**
 
 ---
 
