@@ -134,27 +134,55 @@ def test_failure_before_publish_leaves_previous_output_unchanged(tmp_path):
 
 
 def test_incomplete_publish_rolls_back_previous_bundle(tmp_path):
+    """Prove rollback after multiple forward publications have already succeeded.
+
+    Failure is injected on the third staging→output ``os.replace`` only. Backup
+    copies and rollback restores must not trigger the injected error.
+    """
     model, artifact, metadata = _tiny_xgb_model()
     out = tmp_path / "bundle"
     write_serving_bundle(model, artifact, metadata, out)
     previous = {name: (out / name).read_bytes() for name in REQUIRED_BUNDLE_FILES}
 
-    calls = {"n": 0}
+    forward_calls = {"n": 0}
     real_replace = __import__("os").replace
 
     def flaky_replace(src, dst):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise OSError("simulated publish failure")
+        src_p = Path(src)
+        dst_p = Path(dst)
+        # Forward publication only: staging/<artifact> → output/<artifact>
+        # (exclude .bak sources used during rollback restoration).
+        is_forward_publish = (
+            src_p.parent.name.startswith(".bundle_staging_")
+            and src_p.name in REQUIRED_BUNDLE_FILES
+            and dst_p.parent.resolve() == out.resolve()
+            and dst_p.name == src_p.name
+        )
+        if is_forward_publish:
+            forward_calls["n"] += 1
+            if forward_calls["n"] == 3:
+                raise OSError("simulated mid-publish failure")
         return real_replace(src, dst)
 
     with mock.patch("model.artifact_bundle.os.replace", side_effect=flaky_replace):
-        with pytest.raises(OSError, match="simulated publish failure"):
+        with pytest.raises(OSError, match="simulated mid-publish failure"):
             write_serving_bundle(model, artifact, metadata, out)
 
+    # At least two artifacts were published before the injected failure.
+    assert forward_calls["n"] >= 3
+    assert forward_calls["n"] == 3  # failed on the third forward replace
+
     for name, content in previous.items():
+        assert (out / name).is_file(), f"missing restored artifact: {name}"
         assert (out / name).read_bytes() == content
+
+    # No staging leftovers or backup copies remain in the output tree.
     assert list(out.glob(".bundle_staging_*")) == []
+    assert list(out.glob("*.bak")) == []
+    assert list(out.rglob("*.bak")) == []
+    # Only the supported bundle files (plus nothing partial) remain.
+    remaining = sorted(p.name for p in out.iterdir() if p.is_file())
+    assert remaining == sorted(REQUIRED_BUNDLE_FILES)
 
 
 def test_train_py_uses_shared_bundle_writer_without_independent_encoders_dump():
