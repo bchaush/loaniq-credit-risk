@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json, sys, os
+import json, sys
 import re
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(__file__))
+ROOT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT_DIR))
 from model.explainer import full_assessment, score_applicant
 from model.preprocess import derive_employment_fields
 
@@ -18,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-with open("model/metadata.json") as f:
+with open(ROOT_DIR / "model" / "metadata.json", encoding="utf-8") as f:
     metadata = json.load(f)
 
 # ── Markdown → HTML helper ─────────────────────────────────────────
@@ -1399,6 +1401,10 @@ with tab1:
         st.session_state.step = 1
     if "result" not in st.session_state:
         st.session_state.result = None
+    if "result_signature" not in st.session_state:
+        st.session_state.result_signature = None
+    if "result_applicant" not in st.session_state:
+        st.session_state.result_applicant = None
 
     step = st.session_state.step
 
@@ -1482,7 +1488,7 @@ with tab1:
                 amt_goods   = st.number_input(
                     "Collateral Valuation", 5000, 2000000, 170000, 5000,
                     format="%d",
-                    help="Estimated value of pledged collateral (USD). Used to calculate loan-to-value and loss protection.",
+                    help="Estimated value of pledged collateral (USD). Used to calculate collateral coverage (collateral value divided by requested credit).",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1515,8 +1521,8 @@ with tab1:
                     format="%.2f", help="Simulated alternative credit score (0–1). Tertiary composite used alongside A and B for ensemble risk profiling.",
                 )
             flags = []
-            if ext_source_2 < 0.3: flags.append("Bureau score 2")
-            if ext_source_3 < 0.3: flags.append("Bureau score 3")
+            if ext_source_2 < 0.3: flags.append("Alternative Credit Composite B")
+            if ext_source_3 < 0.3: flags.append("Alternative Credit Composite C")
             if flags:
                 st.warning(f"{'  ·  '.join(flags)} below 0.30 threshold — strong default predictor")
             c1, c2 = st.columns(2)
@@ -1529,7 +1535,7 @@ with tab1:
                 region_rating = st.selectbox(
                     "Geographic Risk Tier",
                     [1, 2, 3],
-                    help="Internal geographic risk band. Captures regional economic and default risk differences.",
+                    help="Research-dataset geographic indicator. Production use would require fair-lending, proxy-risk, and legal review.",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1541,7 +1547,7 @@ with tab1:
                 <div class="lq-section-meta">
                     <div class="lq-section-title-main">Personal</div>
                     <div class="lq-section-title-sub">Household &amp; housing</div>
-                    <div class="lq-section-desc-main">Demographics used for stability and policy checks.</div>
+                    <div class="lq-section-desc-main">Research-dataset demographics shown for parity; not a production eligibility design.</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1549,7 +1555,7 @@ with tab1:
             st.markdown("""
             <div class="lq-ecoa-banner">
                 <div class="lq-ecoa-eyebrow">ECOA / Fair Lending Note</div>
-                <div class="lq-ecoa-body">Demographic features such as Age and Marital Status are retained in this UI strictly for model parity with the underlying research dataset. In a live US production environment, these variables would be excluded or sanitized to comply with the Equal Credit Opportunity Act (ECOA).</div>
+                <div class="lq-ecoa-body">Age and marital status receive special treatment under ECOA / Regulation B and must not be used as generic risk factors in a live US credit decision. They are retained here only for research-dataset parity; any production design requires documented permitted use, legal review, fair-lending testing, and governance.</div>
             </div>
             """, unsafe_allow_html=True)
             c1, c2 = st.columns(2)
@@ -1557,7 +1563,7 @@ with tab1:
                 age_years = st.number_input(
                     "Age (years)",
                     18, 75, 35,
-                    help="Applicant age in years. Used for lifecycle risk context and policy checks.",
+                    help="Research-dataset field retained for model parity. Not presented as a production credit-risk factor.",
                 )
                 cnt_children = st.number_input(
                     "Dependent children",
@@ -1590,7 +1596,7 @@ with tab1:
                         "Separated",
                         "Widow",
                     ],
-                    help="Recorded family status. Used as a proxy for household stability in this demo.",
+                    help="Research-dataset field retained for parity. Production use would require documented legal review and permitted-purpose analysis.",
                 )
                 housing_type = st.selectbox(
                     "Primary housing",
@@ -1615,7 +1621,7 @@ with tab1:
                 flag_own_realty = st.checkbox(
                     "Owns residential real estate",
                     value=True,
-                    help="Indicates property ownership. Strong signal of asset backing and financial stability.",
+                    help="Research-dataset asset indicator retained for model parity. Not proof of repayment capacity.",
                 )
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
@@ -1726,6 +1732,11 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
+        st.caption(
+            "Privacy note: Full assessment sends the displayed demo application fields to "
+            "Anthropic to generate the narrative. Do not enter real personal information. "
+            "Quick score does not request an AI narrative."
+        )
         ca, cb = st.columns([2, 1])
         with ca:
             run_full  = st.button("Run full assessment + AI explanation",
@@ -1766,15 +1777,49 @@ with tab1:
             "OCCUPATION_TYPE": occupation, "ORGANIZATION_TYPE": org_type,
         }
 
+        applicant_signature = json.dumps(
+            applicant, sort_keys=True, allow_nan=True, default=str
+        )
+
+        # Never show a prior decision beside newly edited inputs.
+        if (
+            st.session_state.result is not None
+            and st.session_state.result_signature != applicant_signature
+        ):
+            st.session_state.result = None
+            st.session_state.result_signature = None
+            st.session_state.result_applicant = None
+            st.session_state.step = 1
+
         if run_full or run_quick:
             st.session_state.step = 3
-            if run_full:
-                with st.spinner("Running model and generating explanation..."):
-                    res = full_assessment(applicant)
-            else:
-                res = score_applicant(applicant)
-                res["explanation"] = None
-            st.session_state.result = res
+            res = None
+            try:
+                if run_full:
+                    with st.spinner("Running model and generating explanation..."):
+                        try:
+                            res = full_assessment(applicant)
+                        except Exception:
+                            # The model score is still useful when the optional LLM call fails.
+                            res = score_applicant(applicant)
+                            res["explanation"] = (
+                                "AI explanation unavailable. The model score and policy band "
+                                "were returned without an LLM-generated narrative."
+                            )
+                            st.warning(
+                                "The AI explanation service was unavailable, so this run "
+                                "returned the model score only."
+                            )
+                else:
+                    res = score_applicant(applicant)
+                    res["explanation"] = None
+            except Exception as exc:
+                st.error(f"Assessment failed: {exc}")
+
+            if res is not None:
+                st.session_state.result = res
+                st.session_state.result_signature = applicant_signature
+                st.session_state.result_applicant = dict(applicant)
         elif st.session_state.result is None:
             st.session_state.step = max(1, step)
 
@@ -1791,10 +1836,10 @@ with tab1:
                     </div>
                     <div class="await-label-main">Results will render here after scoring.</div>
                     <div class="await-copy">Complete the applicant profile at left; this panel summarizes the underwriting decision,
-                    model-estimated default probability on the trained feature space, threshold position, and&nbsp;drivers.</div>
+                    uncalibrated model risk estimate on the trained feature space, threshold position, and&nbsp;drivers.</div>
                     <ul class="await-steps">
                         <li><span class="await-steps-mark"></span>Demonstration credit disposition (Approve / Review / Decline).</li>
-                        <li><span class="await-steps-mark"></span>Internal risk score and PD consistent with ROC-trained weights.</li>
+                        <li><span class="await-steps-mark"></span>Internal risk score and uncalibrated risk estimate from the fitted classifier.</li>
                         <li><span class="await-steps-mark"></span>Narrative explanation on full assessments (skipped for Quick score).</li>
                     </ul>
                     <div class="await-preview">
@@ -1805,7 +1850,7 @@ with tab1:
                                 <div class="ghost-bar-wrap"><div class="ghost-bar"></div></div>
                             </div>
                             <div class="ghost-metric">
-                                <div class="ghost-label">Default probability</div>
+                                <div class="ghost-label">Uncalibrated model risk estimate.</div>
                                 <div class="ghost-bar-wrap"><div class="ghost-bar ghost-bar-muted" style="width:68%"></div></div>
                             </div>
                         </div>
@@ -1826,7 +1871,7 @@ with tab1:
                     </div>
                     <div class="await-hint">
                         <p>Use <strong>Run full assessment + AI explanation</strong> for the complete package, or
-                        <strong>Quick score</strong> when you only need risk score&nbsp;&amp;&nbsp;PD.</p>
+                        <strong>Quick score</strong> when you only need the risk score and model estimate.</p>
                     </div>
                 </div>
             </div>
@@ -1841,7 +1886,34 @@ with tab1:
 
             css   = {"APPROVED": "approved", "DECLINED": "declined", "REVIEW": "review"}[dec]
             bar_w = f"{score / 10:.1f}%"
-            bureau_avg = round(ext_sum / 3, 2)
+
+            scored_applicant = st.session_state.result_applicant or applicant
+            scored_dti = float(scored_applicant["debt_to_income"])
+            scored_a2i = float(scored_applicant["annuity_to_income"])
+            scored_coverage = float(scored_applicant["ltv_ratio"])
+            scored_ext_mean = float(scored_applicant["ext_score_sum"]) / 3
+
+            feature_labels = {
+                "low_ext_score_3": "Alt. Credit Signal C (low)",
+                "low_ext_score_2": "Alt. Credit Signal B (low)",
+                "ext_score_sum": "Alt. Credit Composite (sum)",
+                "EXT_SOURCE_3": "Alt. Credit Composite C",
+                "EXT_SOURCE_2": "Alt. Credit Composite B",
+                "EXT_SOURCE_1": "Alt. Credit Composite A",
+                "NAME_EDUCATION_TYPE": "Education Level",
+                "ltv_ratio": "Collateral Coverage",
+                "FLAG_DOCUMENT_3": "Document 3 Indicator",
+                "loan_term_implied": "Implied Payoff Horizon",
+            }
+            ranked_features = metadata.get("top_features", [])[:7]
+            top_feature_rows_html = "".join(
+                '<div class="feat-row">'
+                f'<span class="feat-name">{feature_labels.get(name, name)}</span>'
+                '<div class="feat-bg"><div class="feat-fill" '
+                'style="width:100%;background:rgba(96,165,250,.35)"></div></div>'
+                f'<span class="feat-val">#{rank}</span></div>'
+                for rank, name in enumerate(ranked_features, start=1)
+            )
 
             # ── FIX 2: Convert Claude's markdown to HTML before injecting.
             #    This prevents raw **bold** and \n from appearing in the UI.
@@ -1859,16 +1931,16 @@ with tab1:
                         <div class="dh-metric-value">{score}<span class="dh-score-suffix"> / 1000</span></div>
                     </div>
                     <div class="dh-metric">
-                        <div class="dh-metric-label">Default probability</div>
+                        <div class="dh-metric-label">Uncalibrated model risk estimate.</div>
                         <div class="dh-metric-value">{prob:.1%}</div>
                     </div>
                 </div>
                 <div class="thresh-shell">
-                  <div class="thresh-label"><span>0</span><span>Approved&nbsp;≥&nbsp;850</span><span>1000</span></div>
+                  <div class="thresh-label"><span>0</span><span>Display score · policy uses PD bands</span><span>1000</span></div>
                   <div class="thresh-track">
                     <div class="thresh-fill" style="width:{bar_w}"></div>
                   </div>
-                  <div class="thresh-zones"><span>Higher&nbsp;risk</span><span>Review</span><span>Approve</span></div>
+                  <div class="thresh-zones"><span>Decline&nbsp;≥35% PD</span><span>Review&nbsp;15–&lt;35%</span><span>Approve&nbsp;&lt;15%</span></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1890,34 +1962,30 @@ with tab1:
                     <span class="sc-head-end">Snapshot</span>
                 </div>
                 <div class="sc-metric-grid">
-                    <div class="sc-metric"><div class="sc-label">Credit-to-Income</div><div class="sc-value">{dti:.2f}x</div></div>
-                    <div class="sc-metric"><div class="sc-label">Debt Service / Income</div><div class="sc-value">{a2i:.1%}</div></div>
-                    <div class="sc-metric"><div class="sc-label">Collateral Coverage</div><div class="sc-value">{ltv:.1%}</div></div>
-                    <div class="sc-metric"><div class="sc-label">Normalized Bureau Score (0–1)</div><div class="sc-value">{bureau_avg:.2f}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Credit-to-Income</div><div class="sc-value">{scored_dti:.2f}x</div></div>
+                    <div class="sc-metric"><div class="sc-label">Debt Service / Income</div><div class="sc-value">{scored_a2i:.1%}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Collateral Coverage</div><div class="sc-value">{scored_coverage:.1%}</div></div>
+                    <div class="sc-metric"><div class="sc-label">Alternative Credit Composite Mean (0–1)</div><div class="sc-value">{scored_ext_mean:.2f}</div></div>
                 </div>
                 <div class="feat-block-head">
                     <div class="sc-title">Global model drivers · training baseline</div>
-                    <div class="sc-subtitle">Relative gain from model training. Global view only — not individualized SHAP attribution for this applicant.</div>
+                    <div class="sc-subtitle">Rank read directly from current model metadata. Global view only — not individualized SHAP attribution or a reason code for this applicant.</div>
                 </div>
                 <div class="feat-list">
                   <div class="feat-header-row">
                     <span class="feat-head-label">Training feature</span>
-                    <span class="feat-head-label feat-track-label">Contribution</span>
-                    <span class="feat-val feat-val-head">Imp.</span>
+                    <span class="feat-head-label feat-track-label">Metadata order</span>
+                    <span class="feat-val feat-val-head">Rank</span>
                   </div>
-                  <div class="feat-row"><span class="feat-name">Alt. Credit Signal C (low)</span><div class="feat-bg"><div class="feat-fill" style="width:100%;background:#3b82f6"></div></div><span class="feat-val">0.148</span></div>
-                  <div class="feat-row"><span class="feat-name">Alt. Credit Composite (sum)</span><div class="feat-bg"><div class="feat-fill" style="width:70%;background:#3b82f6"></div></div><span class="feat-val">0.104</span></div>
-                  <div class="feat-row"><span class="feat-name">Alt. Credit Score C</span><div class="feat-bg"><div class="feat-fill" style="width:45%;background:#60a5fa"></div></div><span class="feat-val">0.066</span></div>
-                  <div class="feat-row"><span class="feat-name">Alt. Credit Score B</span><div class="feat-bg"><div class="feat-fill" style="width:34%;background:#60a5fa"></div></div><span class="feat-val">0.050</span></div>
-                  <div class="feat-row"><span class="feat-name">Alt. Credit Signal B (low)</span><div class="feat-bg"><div class="feat-fill" style="width:32%;background:#60a5fa"></div></div><span class="feat-val">0.047</span></div>
-                  <div class="feat-row"><span class="feat-name">Education Level</span><div class="feat-bg"><div class="feat-fill" style="width:29%;background:#93c5fd"></div></div><span class="feat-val">0.042</span></div>
-                  <div class="feat-row"><span class="feat-name">Unemployment Indicator</span><div class="feat-bg"><div class="feat-fill" style="width:26%;background:#93c5fd"></div></div><span class="feat-val">0.039</span></div>
+                  {top_feature_rows_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
             if st.button("Reset assessment", use_container_width=True):
                 st.session_state.result = None
+                st.session_state.result_signature = None
+                st.session_state.result_applicant = None
                 st.session_state.step = 1
                 st.rerun()
 
@@ -1937,8 +2005,8 @@ with tab2:
     """, unsafe_allow_html=True)
     st.info(
         "Upload a CSV file containing applicant-level features to score multiple loan "
-        "applications simultaneously. Batch scoring uses the same underwriting model and "
-        "decision logic as the single applicant workflow."
+        "applications simultaneously. Batch scoring uses the same model and policy thresholds. "
+        "Results match the single-applicant path only when equivalent model features are supplied."
     )
     st.markdown(
         "**Required fields:** Debt-to-Income · Debt Service / Income · "
@@ -1962,8 +2030,8 @@ with tab2:
                        "loaniq_sample.csv", "text/csv")
     uploaded = st.file_uploader("Upload CSV", type="csv", label_visibility="collapsed")
     st.markdown(
-        "<small style='color:#6b7280;'>Output: A scored dataset with risk scores, default "
-        "probabilities, and recommended credit dispositions for each applicant.</small>",
+        "<small style='color:#6b7280;'>Output: A scored dataset with risk scores, uncalibrated "
+        "risk estimates, and demonstration credit dispositions for each applicant.</small>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -1974,7 +2042,18 @@ with tab2:
     )
 
     if uploaded:
-        df_batch = pd.read_csv(uploaded)
+        try:
+            df_batch = pd.read_csv(uploaded)
+        except Exception as exc:
+            st.error(f"CSV could not be read: {exc}")
+            st.stop()
+        if df_batch.empty:
+            st.error("Upload rejected. The CSV contains no applicant rows.")
+            st.stop()
+        if len(df_batch) > 5000:
+            st.error("Upload rejected. This demo limits batch files to 5,000 rows per run.")
+            st.stop()
+
         REQUIRED_COLS = [
             "debt_to_income", "annuity_to_income",
             "EXT_SOURCE_2", "EXT_SOURCE_3",
@@ -1989,6 +2068,22 @@ with tab2:
                 f"correct column names."
             )
             st.stop()
+
+        for col in REQUIRED_COLS:
+            df_batch[col] = pd.to_numeric(df_batch[col], errors="coerce")
+        finite_required = np.isfinite(df_batch[REQUIRED_COLS].to_numpy(dtype=float)).all(axis=1)
+        if not finite_required.all():
+            bad_rows = df_batch.index[~finite_required].tolist()[:10]
+            st.error(
+                "Upload rejected. Required numeric fields contain blanks, text, or "
+                f"non-finite values on row(s): {bad_rows}."
+            )
+            st.stop()
+
+        # Keep deterministic flags aligned with the same formulas used by the UI/training SQL.
+        df_batch["low_ext_score_2"] = (df_batch["EXT_SOURCE_2"] < 0.30).astype(int)
+        df_batch["low_ext_score_3"] = (df_batch["EXT_SOURCE_3"] < 0.30).astype(int)
+
         st.success(f"Loaded {len(df_batch):,} applications")
         if st.button("Run batch scoring", type="primary"):
             expected_cols = metadata["features"]
@@ -2011,8 +2106,7 @@ with tab2:
                     st.error(
                         f"Scoring failed on row {i}. "
                         f"Error: {str(e)}. "
-                        f"Check that all numeric columns contain "
-                        f"valid numbers with no missing values."
+                        f"Check data types and verify that supplied feature values are valid and internally consistent."
                     )
                     st.stop()
             df_out = pd.concat([df_batch.reset_index(drop=True), pd.DataFrame(results)], axis=1)
@@ -2061,12 +2155,10 @@ with tab3:
     st.markdown(
         "<div style='color:#9ca3af; font-size:0.85rem; "
         "margin: 0.5rem 0 1.25rem;'>"
-        "Model performance is within an acceptable range "
-        "for retail credit risk models, providing moderate "
-        "discriminatory power between default and "
-        "non-default outcomes. Decision thresholds are "
-        "manually selected demonstration bands "
-        "(Approve / Review / Decline)."
+        f"Held-out test discrimination: ROC-AUC {metadata['roc_auc']:.4f} and "
+        f"PR-AUC {metadata['pr_auc']:.4f}. The output has not been probability-calibrated, "
+        "and the Approve / Review / Decline thresholds are manually selected demonstration "
+        "bands rather than validated production policy cutoffs."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -2078,10 +2170,10 @@ with tab3:
         </div>
     </div>
     <div style="font-size:12.5px;color:#8b90a8;line-height:1.7;margin-top:.75rem">
-            <b style="color:#c8cbe0">Algorithm:</b> XGBoost with early stopping (242 rounds)<br>
-            <b style="color:#c8cbe0">Class balancing:</b> scale_pos_weight = 11.4<br>
+            <b style="color:#c8cbe0">Algorithm:</b> XGBoost with validation-set early stopping; {metadata.get('n_trees_served', metadata.get('best_iteration', 0) + 1)} trees served (best iteration {metadata.get('best_iteration', 'N/A')})<br>
+            <b style="color:#c8cbe0">Class balancing:</b> Training-fold class weight computed from the observed class ratio<br>
             <b style="color:#c8cbe0">Features:</b> {metadata['n_features']} engineered variables capturing credit behavior, income stability, and alternative scoring signals<br>
-            <b style="color:#c8cbe0">Explainability:</b> Post-model decision rationale generated using LLM-based summarization of key risk drivers
+            <b style="color:#c8cbe0">Explainability:</b> Optional LLM narrative; not SHAP, not a validated adverse-action reason generator
     </div>
     """, unsafe_allow_html=True)
     st.markdown(
@@ -2089,7 +2181,7 @@ with tab3:
         "margin-top:1rem;'>"
         "The model is designed to support underwriting "
         "decisions by estimating default risk and enabling "
-        "consistent, explainable credit assessments."
+        "consistent research demonstrations. Production use requires independent validation, calibration, fair-lending testing, monitoring, and governed reason codes."
         "</div>",
         unsafe_allow_html=True,
     )

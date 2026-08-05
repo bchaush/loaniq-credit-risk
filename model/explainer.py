@@ -23,11 +23,11 @@ except ImportError:  # running as script inside model/
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
-# ── Load model artifacts ──────────────────────────────────────────
-model = joblib.load("model/loaniq_model.pkl")
-PREPROCESSING = load_preprocessing("model/preprocessing.pkl")
+# ── Load model artifacts (ROOT_DIR-absolute paths) ─────────────────
+model = joblib.load(ROOT_DIR / "model" / "loaniq_model.pkl")
+PREPROCESSING = load_preprocessing(ROOT_DIR / "model" / "preprocessing.pkl")
 
-with open("model/metadata.json", encoding="utf-8") as f:
+with open(ROOT_DIR / "model" / "metadata.json", encoding="utf-8") as f:
     metadata = json.load(f)
 
 FEATURE_NAMES = metadata["features"]
@@ -187,7 +187,7 @@ Use "collateral coverage ratio" terminology.
 
 APPLICATION DATA:
 - Decision: {score_result['decision']} ({score_result['risk_tier']})
-- Default Probability: {prob:.1%}
+- Uncalibrated Model Risk Estimate: {prob:.1%}
 - Risk Score: {score_result['risk_score']} / 1000
 - Debt-to-Income Ratio: {dti}
 - Annuity-to-Income Ratio: {a2i}
@@ -197,16 +197,22 @@ APPLICATION DATA:
 - Employment: {'Currently unemployed' if unemp else f'{emp} years employed'}
 - Education: {edu}
 - Income Type: {income}
-- Loan-to-Value Ratio: {ltv}
+- Collateral Coverage Ratio: {ltv}
 - Credit Inquiries (last year): {inq}
 """
 
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=400,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return message.content[0].text
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text
+    except Exception:
+        return (
+            "AI explanation unavailable. The credit score and demonstration "
+            "band were returned without an LLM-generated narrative."
+        )
 
 
 def full_assessment(applicant: dict) -> dict:
