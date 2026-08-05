@@ -360,3 +360,47 @@ def test_zero_tracked_secrets():
         or "API_key" in path
     ]
     assert offenders == []
+
+
+def test_boundary_precision_display_and_unrounded_probability(monkeypatch):
+    from model import explainer as expl
+
+    cases = [
+        (0.14996, "APPROVED", "<15.00%"),
+        (0.15000, "REVIEW", "15.00%"),
+        (0.34996, "REVIEW", "<35.00%"),
+        (0.35000, "DECLINED", "35.00%"),
+    ]
+    for raw_prob, expected_decision, expected_display in cases:
+        monkeypatch.setattr(expl, "encode_applicant", lambda applicant: np.zeros((1, 1)))
+        monkeypatch.setattr(expl, "_predict_proba_best", lambda X, p=raw_prob: float(p))
+        scored = expl.score_applicant({})
+        assert scored["decision"] == expected_decision
+        assert scored["default_probability"] == float(raw_prob)
+        assert scored["default_probability"] == pytest.approx(raw_prob)
+        # Must not be truncated by round(..., 4) style packaging.
+        assert isinstance(scored["default_probability"], float)
+        display = expl.format_uncalibrated_risk_display(
+            scored["default_probability"], scored["decision"]
+        )
+        assert display == expected_display
+
+
+def test_readme_threshold_wording():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "15–35%" not in text
+    assert ">35%" not in text
+    assert "&gt;35%" not in text
+    assert "Approve: &lt;15%" in text
+    assert "Review: ≥15% and &lt;35%" in text
+    assert "Decline: ≥35%" in text
+    assert "Python-3.12.3" in text
+
+
+def test_app_uses_boundary_safe_display_formatter():
+    src = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert "format_uncalibrated_risk_display" in src
+    assert "prob_display" in src
+    assert "result_signature" in src
+    assert "result_applicant" in src
+    assert 'metadata.get("top_features"' in src

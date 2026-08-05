@@ -7,7 +7,11 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR))
-from model.explainer import full_assessment, score_applicant
+from model.explainer import (
+    format_uncalibrated_risk_display,
+    full_assessment,
+    score_applicant,
+)
 from model.preprocess import derive_employment_fields
 
 if __name__ != "__main__":
@@ -1883,6 +1887,7 @@ with tab1:
             dec   = result["decision"]
             tier  = result["risk_tier"]
             expl  = result.get("explanation", "")
+            prob_display = format_uncalibrated_risk_display(prob, dec)
 
             css   = {"APPROVED": "approved", "DECLINED": "declined", "REVIEW": "review"}[dec]
             bar_w = f"{score / 10:.1f}%"
@@ -1932,7 +1937,7 @@ with tab1:
                     </div>
                     <div class="dh-metric">
                         <div class="dh-metric-label">Uncalibrated model risk estimate.</div>
-                        <div class="dh-metric-value">{prob:.1%}</div>
+                        <div class="dh-metric-value">{prob_display}</div>
                     </div>
                 </div>
                 <div class="thresh-shell">
@@ -2110,6 +2115,11 @@ with tab2:
                     )
                     st.stop()
             df_out = pd.concat([df_batch.reset_index(drop=True), pd.DataFrame(results)], axis=1)
+            # Keep raw float in default_probability; presentation-only display column.
+            df_out["uncalibrated_risk_estimate_display"] = [
+                format_uncalibrated_risk_display(row["default_probability"], row["decision"])
+                for _, row in df_out.iterrows()
+            ]
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("Total",    len(df_out))
             b2.metric("Approved", (df_out.decision == "APPROVED").sum())

@@ -76,11 +76,21 @@ def score_applicant(applicant: dict) -> dict:
         risk_tier = "High Risk"
 
     return {
-        "default_probability": round(float(prob), 4),
+        "default_probability": float(prob),
         "risk_score": round((1 - prob) * 1000),   # 0–1000, higher = better
         "decision":   decision,
         "risk_tier":  risk_tier
     }
+
+
+def format_uncalibrated_risk_display(prob: float, decision: str) -> str:
+    """Boundary-safe percentage text that cannot contradict the raw decision."""
+    text = f"{prob:.2%}"
+    if decision == "APPROVED" and text == "15.00%":
+        return "<15.00%"
+    if decision == "REVIEW" and text == "35.00%":
+        return "<35.00%"
+    return text
 
 
 def explain_decision(applicant: dict, score_result: dict) -> str:

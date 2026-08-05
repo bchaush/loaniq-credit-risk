@@ -1,4 +1,4 @@
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12.3-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-app-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
 ![XGBoost](https://img.shields.io/badge/XGBoost-classifier-ECB900?style=flat-square)
 ![Claude](https://img.shields.io/badge/Anthropic-Claude_API-D4A574?style=flat-square)
@@ -31,7 +31,7 @@ This prototype shows how scoring and an LLM memo can sit on one path. It is **no
 - **PR-AUC:** **0.2500**
 - **Train:** **184,506** · **Validation:** **61,502** · **Test:** **61,503**
 
-Decision bands (**&lt;15%** / **15–35%** / **&gt;35%**) are **manually selected demonstration bands**, not validation-tuned cutoffs and not fitted probability calibration.
+Decision bands (**Approve: &lt;15%** · **Review: ≥15% and &lt;35%** · **Decline: ≥35%**) are **manually selected demonstration bands**, not validation-tuned cutoffs and not fitted probability calibration.
 
 **Step 3 — LLM explainability:** **Claude** drafts an internal-style memo from application fields. Global gain bars in the UI are training-level drivers, not per-applicant SHAP.
 
@@ -73,7 +73,7 @@ Decline follows the demonstration band given leverage and bureau composites.
 - ✅ **ROC-AUC (test):** **0.7626**
 - ✅ **PR-AUC (test):** **0.2500**
 - ✅ **Samples:** train **184,506** · validation **61,502** · test **61,503**
-- ✅ Decision bands (manual demo): **&lt;15%** approve · **15–35%** review · **&gt;35%** decline
+- ✅ Decision bands (manual demo): **Approve: &lt;15%** · **Review: ≥15% and &lt;35%** · **Decline: ≥35%**
 - ✅ Preprocessing fitted on **train only**; early stopping on **validation**; final report on **test**
 
 ---
