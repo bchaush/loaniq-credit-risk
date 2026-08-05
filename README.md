@@ -6,7 +6,7 @@
 
 # LoanIQ — Credit Risk Intelligence
 
-**End-to-end ML underwriting platform with XGBoost scoring and Claude AI explainability.**
+**Research / portfolio prototype:** XGBoost scoring with a fact-bounded Claude narrative. This is **not** a production underwriting system and is **not** a regulated adverse-action system.
 
 ---
 
@@ -16,43 +16,63 @@
 
 ## The problem
 
-Most credit models stop at a score. That is not enough when stakeholders need a readable rationale.
+Most credit demos stop at a score. Stakeholders still need a readable rationale that cannot invent strengths, risks, or causal claims.
 
-This prototype shows how scoring and an LLM memo can sit on one path. It is **not** a production underwriting system and does **not** claim Basel, FCRA, or ECOA compliance.
+LoanIQ shows one path: shared preprocessing → uncalibrated model risk estimate → manual demonstration band → deterministic fact engine → optional Claude connective prose that is validated before display.
 
 ---
 
 ## How it works
 
-**Step 1 — Feature engineering:** **34** features from Home Credit **`application_train.csv`** only (loaded into SQLite `applications` → `model_features`). No bureau/installment/balance side tables.
+**Step 1 — Feature engineering:** **34** features from Home Credit **`application_train.csv`** only (SQLite `applications` → `model_features`). No bureau / installment / balance side tables.
 
-**Step 2 — ML scoring:** **XGBoost** with stratified train / validation / held-out test splits. Reported metrics are **test-only**:
+**Step 2 — ML scoring:** **XGBoost** with stratified train / validation / held-out test splits. Reported metrics are **test-only** (from `model/metadata.json`):
 - **ROC-AUC:** **0.7626**
 - **PR-AUC:** **0.2500**
 - **Train:** **184,506** · **Validation:** **61,502** · **Test:** **61,503**
+- Served trees: **289** (`best_iteration` **288**)
 
-Decision bands (**Approve: &lt;15%** · **Review: ≥15% and &lt;35%** · **Decline: ≥35%**) are **manually selected demonstration bands**, not validation-tuned cutoffs and not fitted probability calibration.
+The score is an **uncalibrated model risk estimate**. Manual demonstration bands:
 
-**Step 3 — LLM explainability:** **Claude** drafts an internal-style memo from application fields. Global gain bars in the UI are training-level drivers, not per-applicant SHAP.
+- **Approve:** &lt;15%
+- **Review:** ≥15% and &lt;35%
+- **Decline:** ≥35%
+
+These are **not** validation-tuned cutoffs and **not** fitted probability calibration.
+
+**Step 3 — Narrative:**
+- **Quick score** never calls Anthropic.
+- **Full assessment** scores first, then builds deterministic facts. Claude receives only approved strength/risk fact IDs plus decision context — not neutral metrics.
+- Claude JSON is parsed and validated; Strengths / Key Risks are assembled from **canonical local fact text**.
+- On API failure, malformed JSON, unknown IDs, forbidden terminology, or empty responses, a **deterministic local narrative** is used. Scoring is unchanged.
+
+Global driver ranks in the UI are **training-level metadata order**, not applicant-level SHAP and not individualized causal reasons.
 
 ---
 
-## Sample output *(illustrative)*
+## Sample output *(illustrative; fact-bounded)*
 
 ```
 Summary:
-Declined — model-estimated default probability sits above the demo decline band.
+The applicant receives a DECLINED disposition (High Risk) under the
+manual demonstration band. The uncalibrated model risk estimate is 36.11%.
 
 Strengths:
-- Employment tenure supports income continuity.
+- Debt service / income 20.0% indicates a manageable repayment burden
+  (observed profile indicator).
+- Employment tenure of 5.0 years supports income continuity
+  (observed profile indicator).
 
 Key Risks:
-- Debt-to-income elevated versus stated income.
-- Alternative bureau composites below internal demo floors.
+- None identified.
 
 Decision:
-Decline follows the demonstration band given leverage and bureau composites.
+The DECLINED outcome follows the manual demonstration band applied to
+the uncalibrated model risk estimate (36.11%). Observed profile indicators
+listed above are not individualized model-attribution claims.
 ```
+
+Neutral items such as credit-to-income **3.00x**, alternative composites **0.45 / 0.50**, and collateral coverage ratio **94.4%** are omitted from Strengths and Key Risks.
 
 ---
 
@@ -60,21 +80,23 @@ Decline follows the demonstration band given leverage and bureau composites.
 
 | Layer | Tools | Purpose |
 | --- | --- | --- |
-| Data | SQLite, Pandas, Home Credit `application_train.csv` | Single-table feature view without a heavy warehouse |
-| Model | XGBoost, scikit-learn, joblib | Tabular model with class imbalance handling; fast inference |
-| Explainability | Anthropic Claude API | Readable rationales (prototype; not regulated adverse-action text) |
-| App | Streamlit | Interactive single / batch / model tabs |
-| Deploy | Streamlit Cloud | Demo hosting |
+| Data | SQLite, Pandas, Home Credit `application_train.csv` | Single-table feature view |
+| Model | XGBoost native JSON booster + joblib preprocessing | Tabular inference with train-only medians / category maps |
+| Explainability | Deterministic fact engine + optional Anthropic Claude | Validated narrative with local fallback |
+| App | Streamlit | Single / batch / model tabs |
+| Deploy | Streamlit Cloud | Demo hosting — set **Python 3.12** in Advanced settings |
 
 ---
 
-## Key results
+## Runtime & artifact compatibility
 
-- ✅ **ROC-AUC (test):** **0.7626**
-- ✅ **PR-AUC (test):** **0.2500**
-- ✅ **Samples:** train **184,506** · validation **61,502** · test **61,503**
-- ✅ Decision bands (manual demo): **Approve: &lt;15%** · **Review: ≥15% and &lt;35%** · **Decline: ≥35%**
-- ✅ Preprocessing fitted on **train only**; early stopping on **validation**; final report on **test**
+Pinned direct dependencies are in `requirements.txt` (tested on **Python 3.12.3**).
+
+- Inference uses `model/loaniq_booster.json` (native XGBoost), exported with **exact** prediction parity against `model/loaniq_model.pkl`.
+- `model/loaniq_model.pkl` is retained as the pickle reference; hashes live in `model/artifact_manifest.json`.
+- `scripts/verify_artifact_compatibility.py` loads artifacts, fails on `InconsistentVersionWarning` / XGBoost pickle compatibility warnings, and checks the golden default applicant (**risk score 639**, uncalibrated estimate ≈ **36.11%**, **DECLINED**).
+
+Do **not** enter real personal information in the demo.
 
 ---
 
@@ -83,19 +105,21 @@ Decline follows the demonstration band given leverage and bureau composites.
 ```
 loaniq-credit-risk/
 ├── app.py                 # Streamlit underwriting workspace
-├── requirements.txt       # Runtime dependencies
+├── requirements.txt       # Pinned runtime dependencies
+├── runtime.txt            # python-3.12.3
 ├── README.md              # Project overview (this file)
+├── scripts/               # Artifact compatibility verification
 ├── database/              # SQLite build + feature view scripts
 ├── sql/                   # Feature-engineering SQL
-├── model/                 # Train, preprocess, explainer, artifacts
-└── tests/                 # Integrity tests
+├── model/                 # Train, preprocess, explainer, artifacts, manifest
+└── tests/                 # Integrity + narrative tests
 ```
 
 ---
 
 ## Limitations
 
-**Research prototype only** — not production underwriting and not a claim of regulatory compliance (Basel, FCRA, ECOA, or similar). Home Credit data is an international research proxy. A live US deployment would need regulated data, fair-lending review, adverse-action governance, and monitoring. See in-app compliance / ECOA notes.
+**Research prototype only** — not production underwriting and not a claim of regulatory compliance (Basel, FCRA, ECOA, or similar). Home Credit data is an international research proxy. A live US deployment would need regulated data, fair-lending review, adverse-action governance, monitoring, and independently validated reason codes. See in-app compliance / ECOA notes.
 
 ---
 

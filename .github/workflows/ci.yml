@@ -24,7 +24,69 @@ jobs:
           pip install pytest
 
       - name: Compile Python sources
-        run: python -m compileall -q app.py model database sql tests
+        run: python -m compileall -q app.py model database sql tests scripts
 
       - name: Run tests
         run: pytest -q
+
+      - name: Widget count and integrity markers
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          src = Path("app.py").read_text(encoding="utf-8")
+          widgets = len(re.compile(r"st\.(number_input|selectbox|checkbox)\(").findall(src))
+          assert widgets == 22, widgets
+          assert "result_signature" in src
+          assert 'metadata.get("top_features"' in src
+          print("widget_count", widgets)
+          PY
+
+      - name: Artifact compatibility verification
+        run: python scripts/verify_artifact_compatibility.py
+
+      - name: Secret-pattern scan
+        run: |
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          banned_names = {"API_key.txt", ".env", "secrets.toml", "credentials.json", "id_rsa"}
+          offenders = [
+              p for p in tracked
+              if Path(p).name in banned_names or p.endswith(".pem") or "API_key" in p
+          ]
+          assert offenders == [], offenders
+          print("secrets_ok")
+          PY
+
+      - name: Stale-term scan
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path("app.py"),
+              Path("model/explainer.py"),
+              Path("README.md"),
+          ]
+          banned = [
+              "242 rounds",
+              "Approved ≥ 850",
+              "Approved&nbsp;≥&nbsp;850",
+              "calibrated default probability",
+              "246,008",
+              "246008",
+          ]
+          # Fake hard-coded importance decimals previously shown in drivers.
+          fake_imp = ["0.148", "0.104", "0.066", "0.050", "0.047", "0.042", "0.039"]
+          for path in paths:
+              text = path.read_text(encoding="utf-8")
+              for phrase in banned:
+                  assert phrase not in text, f"{phrase!r} in {path}"
+              # probability of default: forbid in user-facing sources
+              assert "probability of default" not in text.lower(), path
+              if path.name == "app.py":
+                  for imp in fake_imp:
+                      assert f">{imp}</span>" not in text, f"fake importance {imp} in app.py"
+          print("stale_terms_ok")
+          PY

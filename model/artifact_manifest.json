@@ -1,0 +1,39 @@
+{
+  "created_at_utc": "2026-08-05T18:12:40Z",
+  "training_commit": "5ce0cf4",
+  "python_version": "3.12.3",
+  "scikit_learn_version": "1.9.0",
+  "xgboost_version": "3.4.0",
+  "numpy_version": "2.5.1",
+  "pandas_version": "3.0.5",
+  "joblib_version": "1.5.3",
+  "preprocessing_schema_version": "1.0",
+  "n_features": 34,
+  "best_iteration": 288,
+  "n_trees_served": 289,
+  "inference_path": "model/loaniq_booster.json",
+  "pickle_reference": "model/loaniq_model.pkl",
+  "notes": [
+    "Native XGBoost JSON booster is the runtime inference artifact after exact golden parity with loaniq_model.pkl.",
+    "preprocessing.pkl currently embeds scikit-learn 1.9.0 LabelEncoder provenance in this repository revision.",
+    "Streamlit Cloud must use Python 3.12 (Advanced settings), not 3.14."
+  ],
+  "artifacts": {
+    "model/loaniq_model.pkl": {
+      "sha256": "4acc6fa52342a8c25b44261d7f5a5c043b0ebc10c144183574c47aeb3919bae5",
+      "bytes": 1283777
+    },
+    "model/loaniq_booster.json": {
+      "sha256": "08579fd0eed58b5f69ff32206505ca67ad171191d629c6486eb5e65e029eb0d3",
+      "bytes": 1949290
+    },
+    "model/preprocessing.pkl": {
+      "sha256": "6669df823c2a395813decb9253beab4b831db5c771448a5b97eb6c7f5499f5d3",
+      "bytes": 6580
+    },
+    "model/metadata.json": {
+      "sha256": "2ac003b81d044015ac4ff82a75147119e28687a8ed63b561281564b6b00e0b15",
+      "bytes": 1474
+    }
+  }
+}

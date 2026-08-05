@@ -1737,9 +1737,10 @@ with tab1:
         """, unsafe_allow_html=True)
 
         st.caption(
-            "Privacy note: Full assessment sends the displayed demo application fields to "
-            "Anthropic to generate the narrative. Do not enter real personal information. "
-            "Quick score does not request an AI narrative."
+            "Privacy note: Full assessment sends only approved structured demo facts "
+            "needed for the narrative to Anthropic. Neutral metrics and research-only "
+            "parity fields are not promoted as strengths or risks. Do not enter real "
+            "personal information. Quick score does not request an AI narrative."
         )
         ca, cb = st.columns([2, 1])
         with ca:
@@ -1912,11 +1913,15 @@ with tab1:
             }
             ranked_features = metadata.get("top_features", [])[:7]
             top_feature_rows_html = "".join(
-                '<div class="feat-row">'
-                f'<span class="feat-name">{feature_labels.get(name, name)}</span>'
-                '<div class="feat-bg"><div class="feat-fill" '
+                '<div class="feat-row" role="listitem" '
+                f'aria-label="Training feature rank {rank}: {feature_labels.get(name, name)}">'
+                f'<span class="feat-name" title="{feature_labels.get(name, name)} '
+                f'({name})">{feature_labels.get(name, name)}</span>'
+                '<div class="feat-bg" role="presentation" '
+                f'aria-label="Metadata order indicator for {feature_labels.get(name, name)}">'
+                '<div class="feat-fill" '
                 'style="width:100%;background:rgba(96,165,250,.35)"></div></div>'
-                f'<span class="feat-val">#{rank}</span></div>'
+                f'<span class="feat-val" title="Metadata rank {rank}">#{rank}</span></div>'
                 for rank, name in enumerate(ranked_features, start=1)
             )
 
@@ -1941,11 +1946,11 @@ with tab1:
                     </div>
                 </div>
                 <div class="thresh-shell">
-                  <div class="thresh-label"><span>0</span><span>Display score · policy uses PD bands</span><span>1000</span></div>
+                  <div class="thresh-label"><span>0</span><span>Display score · manual demonstration bands</span><span>1000</span></div>
                   <div class="thresh-track">
                     <div class="thresh-fill" style="width:{bar_w}"></div>
                   </div>
-                  <div class="thresh-zones"><span>Decline&nbsp;≥35% PD</span><span>Review&nbsp;15–&lt;35%</span><span>Approve&nbsp;&lt;15%</span></div>
+                  <div class="thresh-zones"><span>Decline&nbsp;≥35%</span><span>Review&nbsp;≥15%–&lt;35%</span><span>Approve&nbsp;&lt;15%</span></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
