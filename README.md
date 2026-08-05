@@ -90,11 +90,20 @@ Neutral items such as credit-to-income **3.00x**, alternative composites **0.45 
 
 ## Runtime & artifact compatibility
 
-Pinned direct dependencies are in `requirements.txt` (tested on **Python 3.12.3**).
+Pinned direct dependencies are in `requirements.txt`. **CI is tested on Python 3.12.3**. Deployment requires **Python 3.12.x** in Streamlit Advanced settings; this prototype does not claim every 3.12 patch release was separately tested.
 
 - Inference uses `model/loaniq_booster.json` (native XGBoost), exported with **exact** prediction parity against `model/loaniq_model.pkl`.
-- `model/loaniq_model.pkl` is retained as the pickle reference; hashes live in `model/artifact_manifest.json`.
-- `scripts/verify_artifact_compatibility.py` loads artifacts, fails on `InconsistentVersionWarning` / XGBoost pickle compatibility warnings, and checks the golden default applicant (**risk score 639**, uncalibrated estimate ≈ **36.11%**, **DECLINED**).
+- `model/loaniq_model.pkl` is retained as the pickle reference; hashes and sizes live in `model/artifact_manifest.json` and are enforced by verification.
+- `scripts/verify_artifact_compatibility.py` loads artifacts, fails on `InconsistentVersionWarning` / XGBoost pickle compatibility warnings, validates the manifest, and checks a **deterministic five-applicant golden set** covering:
+  - **Decline** (default applicant: risk score **639**, uncalibrated estimate ≈ **36.11%**)
+  - **Approve**
+  - **Review**
+  - unseen categorical values
+  - missing numeric values filled with training medians
+
+### Batch scoring
+
+Batch and single-applicant paths share the same preprocessing and model. Equivalent results require equivalent model features. When source fields are present, engineered ratios/flags are validated against canonical SQL-aligned formulas. Absent optional features use training medians or unknown-category codes, so incomplete rows may differ from a fully populated single-applicant profile. Exported batch columns use **uncalibrated model risk estimate** (raw + boundary-safe display); internal scoring keys are not part of the user-facing export.
 
 Do **not** enter real personal information in the demo.
 

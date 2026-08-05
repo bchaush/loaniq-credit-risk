@@ -24,23 +24,18 @@ from model.preprocess import derive_employment_fields  # noqa: E402
 
 
 def live_default_applicant() -> dict:
-    amt_income, amt_annuity, amt_credit, amt_goods = 60000, 12000, 180000, 170000
-    dti = round(amt_credit / max(amt_income, 1), 2)
-    a2i = round(amt_annuity / max(amt_income, 1), 3)
-    ltv = round(amt_goods / max(amt_credit, 1), 3)
-    loan_term = round(amt_credit / max(amt_annuity, 1), 0)
+    from model.feature_engineering import derive_ext_score_sum, derive_financial_features
+
+    fin = derive_financial_features(60000, 180000, 12000, 170000)
     age = 35
     ey, ratio, unemp = derive_employment_fields("Working", 5.0, float(age))
     ext1, ext2, ext3 = 0.50, 0.45, 0.50
     return {
-        "AMT_INCOME_TOTAL": amt_income,
-        "AMT_CREDIT": amt_credit,
-        "AMT_ANNUITY": amt_annuity,
-        "AMT_GOODS_PRICE": amt_goods,
-        "debt_to_income": dti,
-        "annuity_to_income": a2i,
-        "loan_term_implied": loan_term,
-        "ltv_ratio": ltv,
+        "AMT_INCOME_TOTAL": 60000,
+        "AMT_CREDIT": 180000,
+        "AMT_ANNUITY": 12000,
+        "AMT_GOODS_PRICE": 170000,
+        **fin,
         "age_years": float(age),
         "employed_years": ey,
         "employment_to_age_ratio": ratio,
@@ -48,7 +43,7 @@ def live_default_applicant() -> dict:
         "EXT_SOURCE_1": ext1,
         "EXT_SOURCE_2": ext2,
         "EXT_SOURCE_3": ext3,
-        "ext_score_sum": ext1 + ext2 + ext3,
+        "ext_score_sum": derive_ext_score_sum(ext1, ext2, ext3),
         "low_ext_score_2": int(ext2 < 0.3),
         "low_ext_score_3": int(ext3 < 0.3),
         "CNT_CHILDREN": 0,

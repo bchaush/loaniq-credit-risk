@@ -12,6 +12,16 @@ from model.explainer import (
     full_assessment,
     score_applicant,
 )
+from model.feature_engineering import (
+    build_batch_result_row,
+    derive_ext_score_sum,
+    derive_financial_features,
+    derive_high_inquiry_flag,
+    derive_low_ext_score_2,
+    derive_low_ext_score_3,
+    derive_many_children,
+)
+from model.batch_validation import validate_and_prepare_batch
 from model.preprocess import derive_employment_fields
 
 if __name__ != "__main__":
@@ -1705,10 +1715,12 @@ with tab1:
             st.markdown('<div class="lq-form-section-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 
         # ── Derived metrics strip ──────────────────────────────────
-        dti       = round(amt_credit / max(amt_income, 1), 2)
-        a2i       = round(amt_annuity / max(amt_income, 1), 3)
-        ltv       = round(amt_goods / max(amt_credit, 1), 3)
-        loan_term = round(amt_credit / max(amt_annuity, 1), 0)
+        # Modeled values use SQL-aligned rounding; display formatting is unchanged.
+        _fin = derive_financial_features(amt_income, amt_credit, amt_annuity, amt_goods)
+        dti = _fin["debt_to_income"]
+        a2i = _fin["annuity_to_income"]
+        ltv = _fin["ltv_ratio"]
+        loan_term = _fin["loan_term_implied"]
         payoff_years = max(0, int(round(loan_term)))
         payoff_display = f"{payoff_years} yr"
 
@@ -1756,11 +1768,11 @@ with tab1:
         employed_years_feat, emp_age_r, is_unemployed = derive_employment_fields(
             income_type, float(employed_years), float(age_years)
         )
-        ext_sum       = round(ext_source_1 + ext_source_2 + ext_source_3, 4)
-        low_ext2      = 1 if ext_source_2 < 0.3 else 0
-        low_ext3      = 1 if ext_source_3 < 0.3 else 0
-        many_ch       = 1 if cnt_children > 2 else 0
-        high_inq      = 1 if credit_inq > 3 else 0
+        ext_sum       = derive_ext_score_sum(ext_source_1, ext_source_2, ext_source_3)
+        low_ext2      = derive_low_ext_score_2(ext_source_2)
+        low_ext3      = derive_low_ext_score_3(ext_source_3)
+        many_ch       = derive_many_children(cnt_children)
+        high_inq      = derive_high_inquiry_flag(credit_inq)
 
         applicant = {
             "AMT_INCOME_TOTAL": amt_income, "AMT_CREDIT": amt_credit,
@@ -2029,19 +2041,49 @@ with tab2:
         unsafe_allow_html=True,
     )
 
+    _sample_fin = derive_financial_features(60000, 180000, 12000, 170000)
+    _sample_ext_sum = derive_ext_score_sum(0.50, 0.45, 0.50)
     sample_df = pd.DataFrame([{
-        "debt_to_income": 3.0, "annuity_to_income": 0.20,
-        "EXT_SOURCE_1": 0.50, "EXT_SOURCE_2": 0.45, "EXT_SOURCE_3": 0.50,
-        "ext_score_sum": 1.45, "low_ext_score_2": 0, "low_ext_score_3": 0,
-        "age_years": 35, "employed_years": 5.0, "is_unemployed": 0, "ltv_ratio": 0.94,
-        "AMT_INCOME_TOTAL": 60000, "AMT_CREDIT": 180000
-    }] * 3)
+        "AMT_INCOME_TOTAL": 60000,
+        "AMT_CREDIT": 180000,
+        "AMT_ANNUITY": 12000,
+        "AMT_GOODS_PRICE": 170000,
+        "debt_to_income": _sample_fin["debt_to_income"],
+        "annuity_to_income": _sample_fin["annuity_to_income"],
+        "loan_term_implied": _sample_fin["loan_term_implied"],
+        "ltv_ratio": _sample_fin["ltv_ratio"],
+        "EXT_SOURCE_1": 0.50,
+        "EXT_SOURCE_2": 0.45,
+        "EXT_SOURCE_3": 0.50,
+        "ext_score_sum": _sample_ext_sum,
+        "low_ext_score_2": derive_low_ext_score_2(0.45),
+        "low_ext_score_3": derive_low_ext_score_3(0.50),
+        "age_years": 35,
+        "employed_years": 5.0,
+        "is_unemployed": 0,
+        "NAME_INCOME_TYPE": "Working",
+        "CNT_CHILDREN": 0,
+        "credit_inquiries_year": 1,
+        "high_inquiry_flag": derive_high_inquiry_flag(1),
+        "many_children": derive_many_children(0),
+        "REGION_RATING_CLIENT": 1,
+        "FLAG_OWN_REALTY": 1,
+        "FLAG_OWN_CAR": 0,
+        "CNT_FAM_MEMBERS": 2,
+        "NAME_EDUCATION_TYPE": "Secondary / secondary special",
+        "NAME_FAMILY_STATUS": "Married",
+        "NAME_HOUSING_TYPE": "House / apartment",
+        "OCCUPATION_TYPE": "Laborers",
+        "ORGANIZATION_TYPE": "Business Entity Type 3",
+        "REG_CITY_NOT_WORK_CITY": 0,
+        "FLAG_DOCUMENT_3": 1,
+    }])
     st.download_button("Download sample CSV template", sample_df.to_csv(index=False),
                        "loaniq_sample.csv", "text/csv")
     uploaded = st.file_uploader("Upload CSV", type="csv", label_visibility="collapsed")
     st.markdown(
         "<small style='color:#6b7280;'>Output: A scored dataset with risk scores, uncalibrated "
-        "risk estimates, and demonstration credit dispositions for each applicant.</small>",
+        "model risk estimates, and demonstration credit dispositions for each applicant.</small>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -2057,61 +2099,27 @@ with tab2:
         except Exception as exc:
             st.error(f"CSV could not be read: {exc}")
             st.stop()
-        if df_batch.empty:
-            st.error("Upload rejected. The CSV contains no applicant rows.")
-            st.stop()
-        if len(df_batch) > 5000:
-            st.error("Upload rejected. This demo limits batch files to 5,000 rows per run.")
-            st.stop()
 
-        REQUIRED_COLS = [
-            "debt_to_income", "annuity_to_income",
-            "EXT_SOURCE_2", "EXT_SOURCE_3",
-            "age_years", "ext_score_sum",
-        ]
-        missing_required = [c for c in REQUIRED_COLS if c not in df_batch.columns]
-        if missing_required:
-            st.error(
-                f"Upload rejected. Missing required columns: "
-                f"{', '.join(missing_required)}. "
-                f"Download the sample CSV template for the "
-                f"correct column names."
-            )
+        validated = validate_and_prepare_batch(df_batch, metadata["features"])
+        if not validated.ok:
+            for message in validated.errors:
+                st.error(f"Upload rejected. {message}")
+            for notice in validated.notices:
+                st.warning(notice)
             st.stop()
 
-        for col in REQUIRED_COLS:
-            df_batch[col] = pd.to_numeric(df_batch[col], errors="coerce")
-        finite_required = np.isfinite(df_batch[REQUIRED_COLS].to_numpy(dtype=float)).all(axis=1)
-        if not finite_required.all():
-            bad_rows = df_batch.index[~finite_required].tolist()[:10]
-            st.error(
-                "Upload rejected. Required numeric fields contain blanks, text, or "
-                f"non-finite values on row(s): {bad_rows}."
-            )
-            st.stop()
-
-        # Keep deterministic flags aligned with the same formulas used by the UI/training SQL.
-        df_batch["low_ext_score_2"] = (df_batch["EXT_SOURCE_2"] < 0.30).astype(int)
-        df_batch["low_ext_score_3"] = (df_batch["EXT_SOURCE_3"] < 0.30).astype(int)
-
+        df_batch = validated.frame
+        for notice in validated.notices:
+            st.warning(notice)
         st.success(f"Loaded {len(df_batch):,} applications")
         if st.button("Run batch scoring", type="primary"):
-            expected_cols = metadata["features"]
-            missing_cols = [c for c in expected_cols if c not in df_batch.columns]
-            if missing_cols:
-                st.warning(
-                    f"{len(missing_cols)} columns missing from upload "
-                    f"and will use training medians / unknown-category "
-                    f"codes. Results may differ from a fully populated "
-                    f"single-applicant profile for affected rows. "
-                    f"Missing: {', '.join(missing_cols[:5])}"
-                    + (" and more." if len(missing_cols) > 5 else ".")
-                )
             results, prog = [], st.progress(0)
-            for i, row in df_batch.iterrows():
+            n_rows = len(df_batch)
+            for offset, (i, row) in enumerate(df_batch.iterrows(), start=1):
                 try:
-                    results.append(score_applicant(row.to_dict()))
-                    prog.progress((i + 1) / len(df_batch))
+                    scored = score_applicant(row.to_dict())
+                    results.append(build_batch_result_row(scored))
+                    prog.progress(offset / n_rows)
                 except Exception as e:
                     st.error(
                         f"Scoring failed on row {i}. "
@@ -2119,12 +2127,12 @@ with tab2:
                         f"Check data types and verify that supplied feature values are valid and internally consistent."
                     )
                     st.stop()
-            df_out = pd.concat([df_batch.reset_index(drop=True), pd.DataFrame(results)], axis=1)
-            # Keep raw float in default_probability; presentation-only display column.
-            df_out["uncalibrated_risk_estimate_display"] = [
-                format_uncalibrated_risk_display(row["default_probability"], row["decision"])
-                for _, row in df_out.iterrows()
-            ]
+            df_out = pd.concat(
+                [df_batch.reset_index(drop=True), pd.DataFrame(results)],
+                axis=1,
+            )
+            if "default_probability" in df_out.columns:
+                df_out = df_out.drop(columns=["default_probability"])
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("Total",    len(df_out))
             b2.metric("Approved", (df_out.decision == "APPROVED").sum())
