@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -45,7 +47,20 @@ jobs:
       - name: Artifact compatibility verification
         run: python scripts/verify_artifact_compatibility.py
 
-      - name: Secret-pattern scan
+      - name: Tracked bytecode check
+        run: |
+          python - <<'PY'
+          import subprocess
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          offenders = [
+              p for p in tracked
+              if "/__pycache__/" in f"/{p}" or p.endswith(".pyc") or p.endswith("__pycache__")
+          ]
+          assert offenders == [], offenders
+          print("bytecode_ok")
+          PY
+
+      - name: Banned-filename secret check
         run: |
           python - <<'PY'
           import subprocess
@@ -57,8 +72,15 @@ jobs:
               if Path(p).name in banned_names or p.endswith(".pem") or "API_key" in p
           ]
           assert offenders == [], offenders
-          print("secrets_ok")
+          print("secrets_filenames_ok")
           PY
+
+      # Official Gitleaks Action v3.0.0 — pinned to verified commit SHA
+      # https://github.com/gitleaks/gitleaks-action/releases/tag/v3.0.0
+      - name: Gitleaks content secret scan
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Stale-term scan
         run: |
@@ -77,13 +99,11 @@ jobs:
               "246,008",
               "246008",
           ]
-          # Fake hard-coded importance decimals previously shown in drivers.
           fake_imp = ["0.148", "0.104", "0.066", "0.050", "0.047", "0.042", "0.039"]
           for path in paths:
               text = path.read_text(encoding="utf-8")
               for phrase in banned:
                   assert phrase not in text, f"{phrase!r} in {path}"
-              # probability of default: forbid in user-facing sources
               assert "probability of default" not in text.lower(), path
               if path.name == "app.py":
                   for imp in fake_imp:
