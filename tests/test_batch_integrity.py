@@ -11,7 +11,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from model.batch_validation import validate_and_prepare_batch  # noqa: E402
+from model.batch_validation import (  # noqa: E402
+    BatchValidationResult,
+    validate_and_prepare_batch,
+)
 from model.explainer import score_applicant  # noqa: E402
 from model.feature_engineering import (  # noqa: E402
     build_batch_result_row,
@@ -170,3 +173,83 @@ def test_batch_output_columns_exclude_internal_probability():
     assert out["risk_score"] == scored["risk_score"]
     assert out["decision"] == scored["decision"]
     assert out["risk_tier"] == scored["risk_tier"]
+
+
+def test_amt_goods_price_nonnumeric_returns_structured_error():
+    row = default_sample_row()
+    row["AMT_GOODS_PRICE"] = "not-a-price"
+    result = validate_and_prepare_batch(pd.DataFrame([row]), FEATURES)
+    assert result.ok is False
+    assert result.frame is None
+    assert any("AMT_GOODS_PRICE" in err and "non-numeric" in err for err in result.errors)
+    assert result.total_error_count >= 1
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["AMT_INCOME_TOTAL", "AMT_CREDIT", "AMT_ANNUITY", "AMT_GOODS_PRICE"],
+)
+@pytest.mark.parametrize(
+    "bad,token",
+    [
+        (float("nan"), "non-finite"),
+        (float("inf"), "non-finite"),
+        (float("-inf"), "non-finite"),
+    ],
+)
+def test_financial_sources_reject_nan_and_infinity(field, bad, token):
+    row = default_sample_row()
+    row[field] = bad
+    result = validate_and_prepare_batch(pd.DataFrame([row]), FEATURES)
+    assert result.ok is False
+    assert any(field in err and token in err for err in result.errors)
+
+
+def test_invalid_financial_sources_do_not_reach_canonical_derivation(monkeypatch):
+    calls: list[tuple] = []
+
+    def _spy(*args, **kwargs):
+        calls.append(args)
+        raise AssertionError("derive_financial_features must not run on invalid sources")
+
+    monkeypatch.setattr(
+        "model.batch_validation.derive_financial_features",
+        _spy,
+    )
+    row = default_sample_row()
+    row["AMT_GOODS_PRICE"] = "garbage"
+    result = validate_and_prepare_batch(pd.DataFrame([row]), FEATURES)
+    assert result.ok is False
+    assert calls == []
+    assert any("AMT_GOODS_PRICE" in err for err in result.errors)
+
+
+def test_more_than_ten_errors_reports_true_total_count():
+    # 12 independent engineered-field mismatches → 12 errors, 10 visible.
+    rows = []
+    for i in range(12):
+        row = default_sample_row()
+        row["debt_to_income"] = 9.99 + i  # each mismatches canonical 3.0
+        rows.append(row)
+    result = validate_and_prepare_batch(pd.DataFrame(rows), FEATURES)
+    assert result.ok is False
+    assert len(result.errors) == 10
+    assert result.total_error_count == 12
+    assert any(
+        "Showing the first 10 of 12 validation errors." in notice
+        for notice in result.notices
+    )
+    assert not any("may exist" in notice for notice in result.notices)
+
+
+def test_malformed_batch_never_raises_raw_exceptions():
+    row = default_sample_row()
+    row["AMT_ANNUITY"] = "x"
+    row["AMT_GOODS_PRICE"] = float("inf")
+    row["EXT_SOURCE_1"] = float("-inf")
+    row["CNT_CHILDREN"] = "three"
+    # Must return a result object, never raise.
+    result = validate_and_prepare_batch(pd.DataFrame([row]), FEATURES)
+    assert isinstance(result, BatchValidationResult)
+    assert result.ok is False
+    assert result.total_error_count >= 1
