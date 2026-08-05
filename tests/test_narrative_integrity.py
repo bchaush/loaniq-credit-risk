@@ -129,25 +129,37 @@ def test_neutral_and_parity_fields_excluded_from_strengths_risks():
 def test_quick_full_score_parity(monkeypatch):
     from model import explainer as expl
 
-    # Ensure no Anthropic call can affect scoring.
     calls = {"n": 0}
 
     class _Boom:
         def create(self, *args, **kwargs):
             calls["n"] += 1
-            raise RuntimeError("should be unused for score fields")
+            raise RuntimeError("simulated Anthropic outage")
 
     monkeypatch.setattr(expl, "client", SimpleNamespace(messages=_Boom()))
     applicant = live_default_applicant()
+
     quick = score_applicant(applicant)
+    assert calls["n"] == 0
+
     full = full_assessment(applicant)
+    assert calls["n"] == 1
+    expected_fallback = render_deterministic_narrative(
+        {
+            "default_probability": full["default_probability"],
+            "risk_score": full["risk_score"],
+            "decision": full["decision"],
+            "risk_tier": full["risk_tier"],
+        },
+        build_assessment_facts(applicant, full),
+    )
+    assert full["explanation"] == expected_fallback
+
     for key in ("default_probability", "risk_score", "decision", "risk_tier"):
         assert quick[key] == full[key]
-    assert full["explanation"]
-    # Full assessment may attempt Anthropic; Quick score path itself makes zero calls.
-    quick2 = score_applicant(applicant)
-    assert quick2["explanation"] if False else True
-    assert calls["n"] >= 0  # full_assessment may call; scoring remains identical
+
+    score_applicant(applicant)
+    assert calls["n"] == 1
 
 
 def test_quick_score_makes_zero_anthropic_requests(monkeypatch):

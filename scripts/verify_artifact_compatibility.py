@@ -6,7 +6,9 @@ import hashlib
 import json
 import sys
 import warnings
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -27,9 +29,19 @@ from model.explainer import (  # noqa: E402
 )
 from model.preprocess import derive_employment_fields  # noqa: E402
 
+TOL = 1e-12
+
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _decide(prob: float) -> str:
+    if prob < 0.15:
+        return "APPROVED"
+    if prob < 0.35:
+        return "REVIEW"
+    return "DECLINED"
 
 
 def default_live_applicant() -> dict:
@@ -79,6 +91,205 @@ def default_live_applicant() -> dict:
     }
 
 
+def _with_overrides(base: dict, **overrides: Any) -> dict:
+    row = deepcopy(base)
+    row.update(overrides)
+    return row
+
+
+def golden_applicants() -> list[dict[str, Any]]:
+    """Fixed fixtures with observed expected outcomes encoded explicitly."""
+    base = default_live_applicant()
+
+    # 1) Live UI default — Declined / 639 / ~36.11%
+    default = {
+        "id": "default_declined",
+        "applicant": base,
+        "expected_decision": "DECLINED",
+        "expected_risk_score": 639,
+        "expected_prob_approx": 0.3611,
+        "prob_abs_tol": 5e-4,
+    }
+
+    # 2) Low-risk Approve band (established locally; outcome encoded below)
+    approve_income, approve_credit = 100000, 30000
+    approve_annuity, approve_goods = 3000, 33000
+    approve_ext = 0.70
+    approve = {
+        "id": "low_risk_approved",
+        "applicant": _with_overrides(
+            base,
+            AMT_INCOME_TOTAL=approve_income,
+            AMT_CREDIT=approve_credit,
+            AMT_ANNUITY=approve_annuity,
+            AMT_GOODS_PRICE=approve_goods,
+            debt_to_income=round(approve_credit / approve_income, 2),
+            annuity_to_income=round(approve_annuity / approve_income, 3),
+            ltv_ratio=round(approve_goods / approve_credit, 3),
+            loan_term_implied=round(approve_credit / approve_annuity, 0),
+            EXT_SOURCE_1=approve_ext,
+            EXT_SOURCE_2=approve_ext,
+            EXT_SOURCE_3=approve_ext,
+            ext_score_sum=3 * approve_ext,
+            low_ext_score_2=0,
+            low_ext_score_3=0,
+            NAME_EDUCATION_TYPE="Higher education",
+            FLAG_OWN_CAR=1,
+        ),
+        "expected_decision": "APPROVED",
+        "expected_risk_score": 983,
+        "expected_prob_approx": 0.016994252800941467,
+        "prob_abs_tol": 1e-9,
+    }
+
+    # 3) Medium-risk Review band
+    review_income, review_credit = 80000, 150000
+    review_annuity, review_goods = 10000, 140000
+    review_ext2 = 0.35
+    review = {
+        "id": "medium_risk_review",
+        "applicant": _with_overrides(
+            base,
+            AMT_INCOME_TOTAL=review_income,
+            AMT_CREDIT=review_credit,
+            AMT_ANNUITY=review_annuity,
+            AMT_GOODS_PRICE=review_goods,
+            debt_to_income=round(review_credit / review_income, 2),
+            annuity_to_income=round(review_annuity / review_income, 3),
+            ltv_ratio=round(review_goods / review_credit, 3),
+            loan_term_implied=round(review_credit / review_annuity, 0),
+            EXT_SOURCE_1=0.55,
+            EXT_SOURCE_2=review_ext2,
+            EXT_SOURCE_3=0.55,
+            ext_score_sum=0.55 + review_ext2 + 0.55,
+            low_ext_score_2=int(review_ext2 < 0.3),
+            low_ext_score_3=0,
+        ),
+        "expected_decision": "REVIEW",
+        "expected_risk_score": 713,
+        "expected_prob_approx": 0.2870631515979767,
+        "prob_abs_tol": 1e-9,
+    }
+
+    # 4) Unseen categorical values → unknown-category mapping (-1)
+    unseen = {
+        "id": "unseen_categoricals",
+        "applicant": _with_overrides(
+            base,
+            NAME_INCOME_TYPE="BrandNewIncomeType",
+            NAME_EDUCATION_TYPE="BrandNewEducation",
+            NAME_FAMILY_STATUS="BrandNewFamilyStatus",
+            NAME_HOUSING_TYPE="BrandNewHousing",
+            OCCUPATION_TYPE="BrandNewOccupation",
+            ORGANIZATION_TYPE="BrandNewOrganization",
+        ),
+        "expected_decision": None,  # band derived from probability
+        "expected_risk_score": None,
+        "expected_prob_approx": None,
+        "prob_abs_tol": None,
+        "require_unknown_category_codes": True,
+    }
+
+    # 5) Missing numeric fields → training medians via shared preprocessing
+    missing = {
+        "id": "missing_numeric_medians",
+        "applicant": _with_overrides(
+            base,
+            # Omit several numeric model fields; shared transform fills train medians.
+        ),
+        "expected_decision": None,
+        "expected_risk_score": None,
+        "expected_prob_approx": None,
+        "prob_abs_tol": None,
+        "drop_numeric_keys": (
+            "EXT_SOURCE_1",
+            "debt_to_income",
+            "annuity_to_income",
+            "loan_term_implied",
+            "employed_years",
+            "employment_to_age_ratio",
+        ),
+    }
+    for key in missing["drop_numeric_keys"]:
+        missing["applicant"].pop(key, None)
+
+    return [default, approve, review, unseen, missing]
+
+
+def _check_parity_case(
+    case: dict[str, Any],
+    sklearn_model: Any,
+    native: xgb.Booster,
+) -> None:
+    applicant = case["applicant"]
+    X = encode_applicant(applicant)
+    if case.get("require_unknown_category_codes"):
+        # Spot-check that at least one categorical column mapped to -1.
+        from model.explainer import PREPROCESSING
+
+        cat_idxs = [
+            PREPROCESSING["feature_order"].index(c)
+            for c in PREPROCESSING["cat_cols"]
+            if c in PREPROCESSING["feature_order"]
+        ]
+        assert any(int(X[0, i]) == -1 for i in cat_idxs), case["id"]
+
+    p_sklearn = float(
+        sklearn_model.predict_proba(X, iteration_range=(0, N_TREES_SERVED))[0][1]
+    )
+    p_native = float(
+        native.predict(
+            xgb.DMatrix(X, feature_names=FEATURE_NAMES),
+            iteration_range=(0, N_TREES_SERVED),
+        )[0]
+    )
+    p_runtime = float(_predict_proba_best(X))
+
+    for label, prob in (
+        ("pkl", p_sklearn),
+        ("json", p_native),
+        ("runtime", p_runtime),
+    ):
+        if not np.isfinite(prob) or not (0.0 <= prob <= 1.0):
+            raise AssertionError(f"{case['id']}: {label} probability out of range: {prob}")
+
+    if abs(p_sklearn - p_native) > TOL or abs(p_runtime - p_native) > TOL:
+        raise AssertionError(
+            f"{case['id']}: parity exceeded TOL={TOL} "
+            f"pkl={p_sklearn} json={p_native} runtime={p_runtime}"
+        )
+
+    scored = score_applicant(applicant)
+    if abs(scored["default_probability"] - p_runtime) > TOL:
+        raise AssertionError(f"{case['id']}: score_applicant probability mismatch")
+    if scored["decision"] != _decide(scored["default_probability"]):
+        raise AssertionError(f"{case['id']}: decision-band mismatch")
+
+    if case.get("expected_decision") is not None:
+        if scored["decision"] != case["expected_decision"]:
+            raise AssertionError(
+                f"{case['id']}: expected {case['expected_decision']} got {scored['decision']}"
+            )
+    if case.get("expected_risk_score") is not None:
+        if scored["risk_score"] != case["expected_risk_score"]:
+            raise AssertionError(
+                f"{case['id']}: expected score {case['expected_risk_score']} "
+                f"got {scored['risk_score']}"
+            )
+    if case.get("expected_prob_approx") is not None:
+        if abs(scored["default_probability"] - case["expected_prob_approx"]) > case["prob_abs_tol"]:
+            raise AssertionError(
+                f"{case['id']}: expected ~{case['expected_prob_approx']} "
+                f"got {scored['default_probability']}"
+            )
+
+    print(
+        f"OK {case['id']}: decision={scored['decision']} "
+        f"score={scored['risk_score']} p={scored['default_probability']:.10f} "
+        f"parity(pkl/json/runtime)"
+    )
+
+
 def main() -> int:
     print("=== LoanIQ artifact compatibility ===")
     print(f"Python:      {sys.version.split()[0]}")
@@ -121,45 +332,19 @@ def main() -> int:
                 print("FAIL XGBoost pickle compatibility warning detected")
                 return 1
 
-    # Native booster must match sklearn pickle predictions on golden set.
     native = xgb.Booster()
     native.load_model(str(booster_path))
-    applicant = default_live_applicant()
-    X = encode_applicant(applicant)
-    p_sklearn = float(
-        sklearn_model.predict_proba(X, iteration_range=(0, N_TREES_SERVED))[0][1]
-    )
-    p_native = float(
-        native.predict(
-            xgb.DMatrix(X, feature_names=FEATURE_NAMES),
-            iteration_range=(0, N_TREES_SERVED),
-        )[0]
-    )
-    p_runtime = _predict_proba_best(X)
-    print(f"golden pkl={p_sklearn:.10f} json={p_native:.10f} runtime={p_runtime:.10f}")
-    if abs(p_sklearn - p_native) > 0.0 or abs(p_runtime - p_native) > 0.0:
-        # Allow tiny float noise only if documented; currently require exact match.
-        if abs(p_sklearn - p_native) > 1e-12 or abs(p_runtime - p_native) > 1e-12:
-            print("FAIL golden prediction parity exceeded tolerance")
-            return 1
 
-    scored = score_applicant(applicant)
-    prob = scored["default_probability"]
-    if not (0.0 <= prob <= 1.0) or not np.isfinite(prob):
-        print("FAIL probability not finite in [0, 1]")
-        return 1
-    print(
-        f"default applicant: decision={scored['decision']} "
-        f"score={scored['risk_score']} estimate={prob:.4%}"
-    )
-    if scored["decision"] != "DECLINED" or scored["risk_score"] != 639:
-        print("FAIL unexpected default-applicant score/decision")
-        return 1
-    if abs(prob - 0.3611) > 5e-4:
-        print("FAIL unexpected default-applicant uncalibrated estimate")
+    cases = golden_applicants()
+    assert len(cases) >= 5
+    try:
+        for case in cases:
+            _check_parity_case(case, sklearn_model, native)
+    except AssertionError as exc:
+        print(f"FAIL {exc}")
         return 1
 
-    print("OK artifact compatibility verified")
+    print(f"OK artifact compatibility verified ({len(cases)} golden applicants)")
     return 0
 
 
