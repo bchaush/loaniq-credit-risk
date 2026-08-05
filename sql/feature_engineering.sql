@@ -1,5 +1,6 @@
 -- LoanIQ Feature Engineering
 -- Runs on the applications table, produces model_features view
+-- DAYS_EMPLOYED == 365243 is the Home Credit unemployed/retired sentinel
 
 CREATE VIEW IF NOT EXISTS model_features AS
 SELECT
@@ -18,11 +19,27 @@ SELECT
     ROUND(AMT_GOODS_PRICE / NULLIF(AMT_CREDIT, 0), 4)      AS ltv_ratio,
 
     -- === AGE & EMPLOYMENT ===
+    -- After build_db, DAYS_* are positive day counts; sentinel 365243 cleared to NULL
     ROUND(DAYS_BIRTH / 365.25, 1)                           AS age_years,
-    ROUND(DAYS_EMPLOYED / 365.25, 1)                        AS employed_years,
-    ROUND(DAYS_EMPLOYED / NULLIF(DAYS_BIRTH, 0), 4)         AS employment_to_age_ratio,
+    ROUND(
+        CASE
+            WHEN DAYS_EMPLOYED IS NULL OR DAYS_EMPLOYED = 365243 THEN NULL
+            ELSE DAYS_EMPLOYED / 365.25
+        END
+    , 1)                                                    AS employed_years,
+    -- tenure_years / age_years (identical to app inference formula)
+    ROUND(
+        CASE
+            WHEN DAYS_EMPLOYED IS NULL OR DAYS_EMPLOYED = 365243 THEN NULL
+            WHEN DAYS_BIRTH IS NULL OR DAYS_BIRTH = 0 THEN NULL
+            ELSE (DAYS_EMPLOYED / 365.25) / (DAYS_BIRTH / 365.25)
+        END
+    , 4)                                                    AS employment_to_age_ratio,
 
-    CASE WHEN DAYS_EMPLOYED IS NULL THEN 1 ELSE 0 END       AS is_unemployed,
+    CASE
+        WHEN DAYS_EMPLOYED IS NULL OR DAYS_EMPLOYED = 365243 THEN 1
+        ELSE 0
+    END                                                     AS is_unemployed,
 
     -- === CREDIT SCORE FLAGS ===
     EXT_SOURCE_1,
@@ -54,7 +71,7 @@ SELECT
     CASE WHEN AMT_REQ_CREDIT_BUREAU_YEAR > 3
          THEN 1 ELSE 0 END                                  AS high_inquiry_flag,
 
-    -- === CATEGORICAL (keep as-is for one-hot encoding in Python) ===
+    -- === CATEGORICAL ===
     NAME_INCOME_TYPE,
     NAME_EDUCATION_TYPE,
     NAME_FAMILY_STATUS,

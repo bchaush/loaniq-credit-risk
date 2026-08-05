@@ -2,6 +2,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-app-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
 ![XGBoost](https://img.shields.io/badge/XGBoost-classifier-ECB900?style=flat-square)
 ![Claude](https://img.shields.io/badge/Anthropic-Claude_API-D4A574?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 # LoanIQ — Credit Risk Intelligence
 
@@ -15,19 +16,19 @@
 
 ## The problem
 
-Most production credit models stop at a probability or score. That is not enough for policy teams or regulators.
+Most credit models stop at a score. That is not enough when stakeholders need a readable rationale.
 
-Basel III capital frameworks and FCRA-style adverse-action rules expect transparent reasons when credit is denied or priced aggressively. LoanIQ wires explainability into the same path as the score—so risk and narrative stay aligned.
+This prototype shows how scoring and an LLM memo can sit on one path. It is **not** a production underwriting system and does **not** claim Basel, FCRA, or ECOA compliance.
 
 ---
 
 ## How it works
 
-Step 1 — Feature engineering: 34 features engineered from 5 raw Home Credit tables through a SQLite pipeline—bureau history, application attributes, installment behavior, and balance dynamics.
+**Step 1 — Feature engineering:** **34** features from the Home Credit **`application_train`** table via SQLite (`applications` → `model_features`). Ratios, tenure, bureau-style composites, and categoricals used by the classifier.
 
-Step 2 — ML scoring: XGBoost classifier on 246,008 training rows (8.1% default rate). ROC-AUC 0.7635, PR-AUC 0.2502. Three bands: Approved default prob &lt;15% · Review 15–35% · Declined &gt;35%.
+**Step 2 — ML scoring:** **XGBoost** with train / validation / held-out test discipline. Reported metrics are **test-only**. Decision bands (**&lt;15%** / **15–35%** / **&gt;35%**) are **manually selected demonstration policy bands**, not validation-tuned cutoffs.
 
-Step 3 — LLM explainability: Claude API drafts a structured underwriting memo per decision—risk drivers, offsets, and why the band triggered.
+**Step 3 — LLM explainability:** **Claude** drafts an internal-style memo from application fields. Global gain bars in the UI are training-level drivers, not per-applicant SHAP.
 
 ---
 
@@ -35,18 +36,17 @@ Step 3 — LLM explainability: Claude API drafts a structured underwriting memo 
 
 ```
 Summary:
-Declined — default probability sits above policy tolerance given leverage and bureau weakness.
+Declined — model-estimated default probability sits above the demo decline band.
 
 Strengths:
-- Employment tenure (4.5 years) supports income continuity.
+- Employment tenure supports income continuity.
 
 Key Risks:
-- Debt-to-income at 4.2× signals stretched leverage versus stated income.
-- Alternative bureau composites B/C sit below internal floors (flags raised).
-- Debt service / income near upper band leaves little cushion for shocks.
+- Debt-to-income elevated versus stated income.
+- Alternative bureau composites below internal demo floors.
 
 Decision:
-Decline aligns with elevated default probability and thin mitigants on affordability; adverse-action reasons would cite leverage and bureau composites.
+Decline follows the demonstration band given leverage and bureau composites.
 ```
 
 ---
@@ -55,20 +55,20 @@ Decline aligns with elevated default probability and thin mitigants on affordabi
 
 | Layer | Tools | Purpose |
 | --- | --- | --- |
-| Data | SQLite, Pandas, Home Credit | Lightweight relational feature pipeline without heavy DB ops |
-| Model | XGBoost, scikit-learn, joblib | Strong tabular performance with **class imbalance**; fast batch inference |
-| Explainability | Anthropic Claude API | Readable rationales without maintaining template libraries |
-| App | Streamlit | Rapid interactive underwriting UI |
-| Deploy | Streamlit Cloud | Zero-ops hosting aligned with demo workflows |
+| Data | SQLite, Pandas, Home Credit application table | Lightweight feature view without a heavy warehouse |
+| Model | XGBoost, scikit-learn, joblib | Tabular model with class imbalance handling; fast inference |
+| Explainability | Anthropic Claude API | Readable rationales (prototype; not regulated adverse-action text) |
+| App | Streamlit | Interactive single / batch / model tabs |
+| Deploy | Streamlit Cloud | Demo hosting |
 
 ---
 
 ## Key results
 
-- ROC-AUC: 0.7635
-- PR-AUC: 0.2502
-- Training n: 246,008 · Test n: 61,503 · Default rate: 8.1%
-- Thresholds: &lt;15% approve · 15–35% manual review · &gt;35% decline
+Metrics are written to `model/metadata.json` after training (test split only). Check that file for current **ROC-AUC**, **PR-AUC**, and sample counts.
+
+- ✅ Decision bands (demo): **&lt;15%** approve · **15–35%** review · **&gt;35%** decline
+- ✅ Preprocessing fitted on **train only**; early stopping on **validation**; final report on **test**
 
 ---
 
@@ -76,16 +76,23 @@ Decline aligns with elevated default probability and thin mitigants on affordabi
 
 ```
 loaniq-credit-risk/
-├── app.py                 # Streamlit underwriting workspace (single / batch / model tabs)
+├── app.py                 # Streamlit underwriting workspace
 ├── requirements.txt       # Runtime dependencies
 ├── README.md              # Project overview (this file)
-├── database/              # SQLite build + feature application scripts
-├── sql/                   # Feature-engineering SQL (Home Credit → training schema)
-└── model/                 # Training script, Claude explainer, metadata, serialized model artifacts
+├── database/              # SQLite build + feature view scripts
+├── sql/                   # Feature-engineering SQL
+├── model/                 # Train, preprocess, explainer, artifacts
+└── tests/                 # Integrity tests
 ```
+
+---
+
+## Limitations
+
+US Fintech **prototype**. Home Credit data is an international research proxy. Production use would need regulated data, fair-lending review, adverse-action governance, and monitoring. See in-app compliance / ECOA notes.
 
 ---
 
 ## About the author
 
-Built by Bora Chaush — MS Business Analytics @ Brandeis International Business School. Background in finance, accounting (PwC), and ML engineering. [Connect on LinkedIn](https://www.linkedin.com/in/bora-chaush-90b257239).
+Built by **Bora Chaush** — MS Business Analytics @ Brandeis International Business School. Background in finance, accounting (**PwC**), and ML engineering. [Connect on LinkedIn](https://www.linkedin.com/in/bora-chaush-90b257239).

@@ -6,6 +6,7 @@ import re
 
 sys.path.insert(0, os.path.dirname(__file__))
 from model.explainer import full_assessment, score_applicant
+from model.preprocess import derive_employment_fields
 
 if __name__ != "__main__":
     raise SystemExit
@@ -1735,8 +1736,10 @@ with tab1:
     # ── RIGHT: Results panel ───────────────────────────────────────
     with right:
 
-        is_unemployed = 1 if income_type == "Unemployed" else 0
-        emp_age_r     = round((employed_years * 365) / max(age_years * 365.25, 1), 4)
+        # Hidden transform only — widgets unchanged. is_unemployed from tenure nullity.
+        employed_years_feat, emp_age_r, is_unemployed = derive_employment_fields(
+            income_type, float(employed_years), float(age_years)
+        )
         ext_sum       = round(ext_source_1 + ext_source_2 + ext_source_3, 4)
         low_ext2      = 1 if ext_source_2 < 0.3 else 0
         low_ext3      = 1 if ext_source_3 < 0.3 else 0
@@ -1748,7 +1751,7 @@ with tab1:
             "AMT_ANNUITY": amt_annuity, "AMT_GOODS_PRICE": amt_goods,
             "debt_to_income": dti, "annuity_to_income": a2i,
             "loan_term_implied": loan_term, "ltv_ratio": ltv,
-            "age_years": float(age_years), "employed_years": employed_years,
+            "age_years": float(age_years), "employed_years": employed_years_feat,
             "employment_to_age_ratio": emp_age_r, "is_unemployed": is_unemployed,
             "EXT_SOURCE_1": ext_source_1, "EXT_SOURCE_2": ext_source_2,
             "EXT_SOURCE_3": ext_source_3, "ext_score_sum": ext_sum,
@@ -1788,9 +1791,9 @@ with tab1:
                     </div>
                     <div class="await-label-main">Results will render here after scoring.</div>
                     <div class="await-copy">Complete the applicant profile at left; this panel summarizes the underwriting decision,
-                    calibrated default probability on the trained feature space, threshold position, and&nbsp;drivers.</div>
+                    model-estimated default probability on the trained feature space, threshold position, and&nbsp;drivers.</div>
                     <ul class="await-steps">
-                        <li><span class="await-steps-mark"></span>Policy-aligned credit disposition (Approve / Review / Decline).</li>
+                        <li><span class="await-steps-mark"></span>Demonstration credit disposition (Approve / Review / Decline).</li>
                         <li><span class="await-steps-mark"></span>Internal risk score and PD consistent with ROC-trained weights.</li>
                         <li><span class="await-steps-mark"></span>Narrative explanation on full assessments (skipped for Quick score).</li>
                     </ul>
@@ -1990,15 +1993,12 @@ with tab2:
         if st.button("Run batch scoring", type="primary"):
             expected_cols = metadata["features"]
             missing_cols = [c for c in expected_cols if c not in df_batch.columns]
-            for col in expected_cols:
-                if col not in df_batch.columns:
-                    df_batch[col] = 0
-            df_batch = df_batch[expected_cols]
             if missing_cols:
                 st.warning(
                     f"{len(missing_cols)} columns missing from upload "
-                    f"and defaulted to 0. Results may differ from "
-                    f"single applicant scoring for affected rows. "
+                    f"and will use training medians / unknown-category "
+                    f"codes. Results may differ from a fully populated "
+                    f"single-applicant profile for affected rows. "
                     f"Missing: {', '.join(missing_cols[:5])}"
                     + (" and more." if len(missing_cols) > 5 else ".")
                 )
@@ -2065,8 +2065,8 @@ with tab3:
         "for retail credit risk models, providing moderate "
         "discriminatory power between default and "
         "non-default outcomes. Decision thresholds are "
-        "calibrated to align with underwriting policy "
-        "bands (Approve / Review / Decline)."
+        "manually selected demonstration policy bands "
+        "(Approve / Review / Decline)."
         "</div>",
         unsafe_allow_html=True,
     )

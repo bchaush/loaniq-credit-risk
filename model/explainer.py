@@ -1,5 +1,4 @@
 import anthropic
-import sqlite3
 import joblib
 import json
 import numpy as np
@@ -8,23 +7,32 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+try:
+    from model.preprocess import (
+        load_preprocessing,
+        transform_applicant,
+        transform_frame,
+    )
+except ImportError:  # running as script inside model/
+    from preprocess import (  # type: ignore
+        load_preprocessing,
+        transform_applicant,
+        transform_frame,
+    )
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
 # ── Load model artifacts ──────────────────────────────────────────
-model    = joblib.load("model/loaniq_model.pkl")
-encoders = joblib.load("model/encoders.pkl")
+model = joblib.load("model/loaniq_model.pkl")
+PREPROCESSING = load_preprocessing("model/preprocessing.pkl")
 
-with open("model/metadata.json") as f:
+with open("model/metadata.json", encoding="utf-8") as f:
     metadata = json.load(f)
 
 FEATURE_NAMES = metadata["features"]
-
-CAT_COLS = [
-    "NAME_INCOME_TYPE", "NAME_EDUCATION_TYPE",
-    "NAME_FAMILY_STATUS", "NAME_HOUSING_TYPE",
-    "OCCUPATION_TYPE", "ORGANIZATION_TYPE"
-]
+BEST_ITERATION = int(metadata.get("best_iteration", 0))
+N_TREES_SERVED = int(metadata.get("n_trees_served", BEST_ITERATION + 1))
 
 api_key = os.getenv("ANTHROPIC_API_KEY")
 
@@ -35,29 +43,28 @@ else:
 
 
 def encode_applicant(applicant: dict) -> np.ndarray:
-    """Turn a raw applicant dict into the model's feature vector."""
-    df = pd.DataFrame([applicant])
-    for col in CAT_COLS:
-        if col in df.columns:
-            df[col] = df[col].fillna("Unknown")
-            le = encoders[col]
-            df[col] = df[col].apply(
-                lambda x: le.transform([x])[0]
-                if x in le.classes_ else -1
-            )
-    df = df.fillna(0)
-    # Align columns to training order
-    for col in FEATURE_NAMES:
-        if col not in df.columns:
-            df[col] = 0
-    return df[FEATURE_NAMES].values
+    """Shared transform: train medians + categorical maps (no zero-fill)."""
+    return transform_applicant(applicant, PREPROCESSING)
+
+
+def encode_batch(df: pd.DataFrame) -> np.ndarray:
+    """Same shared transform for batch rows."""
+    return transform_frame(df, PREPROCESSING)
+
+
+def _predict_proba_best(X: np.ndarray) -> float:
+    """Serve only trees through best_iteration (inclusive)."""
+    return float(
+        model.predict_proba(X, iteration_range=(0, N_TREES_SERVED))[0][1]
+    )
 
 
 def score_applicant(applicant: dict) -> dict:
     """Return risk score + probability for a single applicant."""
     X = encode_applicant(applicant)
-    prob = model.predict_proba(X)[0][1]
+    prob = _predict_proba_best(X)
 
+    # Demonstration policy bands (manually selected; not validation-tuned)
     if prob < 0.15:
         decision = "APPROVED"
         risk_tier = "Low Risk"

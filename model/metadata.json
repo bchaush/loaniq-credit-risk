@@ -1,7 +1,8 @@
 {
-  "roc_auc": 0.7635,
-  "pr_auc": 0.2502,
-  "n_train": 246008,
+  "roc_auc": 0.7626,
+  "pr_auc": 0.25,
+  "n_train": 184506,
+  "n_val": 61502,
   "n_test": 61503,
   "default_rate": 0.0807,
   "features": [
@@ -43,14 +44,23 @@
   "n_features": 34,
   "top_features": [
     "low_ext_score_3",
+    "low_ext_score_2",
     "ext_score_sum",
     "EXT_SOURCE_3",
-    "EXT_SOURCE_2",
-    "low_ext_score_2",
     "NAME_EDUCATION_TYPE",
-    "is_unemployed",
+    "EXT_SOURCE_2",
     "ltv_ratio",
     "EXT_SOURCE_1",
+    "FLAG_DOCUMENT_3",
     "loan_term_implied"
-  ]
+  ],
+  "decision_thresholds": {
+    "approved_lt": 0.15,
+    "review_lt": 0.35,
+    "note": "Manually selected demonstration policy bands (not validation-tuned)."
+  },
+  "early_stopping_eval_set": "validation",
+  "best_iteration": 288,
+  "n_trees_served": 289,
+  "preprocessing_version": "1.0"
 }

@@ -48,9 +48,10 @@ print(f"Trimmed to {len(df.columns)} columns")
 
 # Basic cleaning
 df["DAYS_BIRTH"] = df["DAYS_BIRTH"].abs()         # convert to positive age in days
+# Home Credit sentinel 365243 = unemployed / retired / no active tenure
 df["DAYS_EMPLOYED"] = df["DAYS_EMPLOYED"].apply(
-    lambda x: x if x < 0 else None               # 365243 = unemployed/retired sentinel
-).abs()
+    lambda x: None if (pd.isna(x) or x == 365243 or x >= 0) else abs(x)
+)
 
 df["FLAG_OWN_CAR"] = (df["FLAG_OWN_CAR"] == "Y").astype(int)
 df["FLAG_OWN_REALTY"] = (df["FLAG_OWN_REALTY"] == "Y").astype(int)

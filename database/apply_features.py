@@ -4,16 +4,17 @@ DB_PATH = "database/loaniq.db"
 SQL_PATH = "sql/feature_engineering.sql"
 
 conn = sqlite3.connect(DB_PATH)
+conn.execute("DROP VIEW IF EXISTS model_features")
 
-with open(SQL_PATH) as f:
+with open(SQL_PATH, encoding="utf-8") as f:
     sql = f.read()
 
 conn.executescript(sql)
 conn.commit()
 
-# Spot check
 row = conn.execute("""
-    SELECT debt_to_income, annuity_to_income, age_years, ext_score_sum
+    SELECT debt_to_income, annuity_to_income, age_years, employed_years,
+           employment_to_age_ratio, is_unemployed, ext_score_sum
     FROM model_features
     WHERE TARGET IS NOT NULL
     LIMIT 5
@@ -24,4 +25,4 @@ for r in row:
     print(r)
 
 conn.close()
-print("✅ Feature view created")
+print("OK Feature view created")
